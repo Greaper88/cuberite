@@ -424,7 +424,7 @@ void cLightingThread::PrepareBlockLight()
 	m_NumSeeds = 0;
 
 	// Add each emissive block into the seeds:
-	for (int Idx = 0; Idx < (m_MaxHeight * BlocksPerYLayer); ++Idx)
+	for (int Idx = 0; Idx < ((m_MaxHeight + 1) * BlocksPerYLayer); ++Idx)
 	{
 		if (cBlockInfo::GetLightValue(m_BlockTypes[Idx]) == 0)
 		{

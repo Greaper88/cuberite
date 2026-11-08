@@ -45,4 +45,11 @@ missing blocks, including concrete on 1.11, use vanilla look-alikes. Held
 and dropped block items also use look-alikes. Players who skip the pack see
 the ordinary substitute models.
 
+Experimental Java 1.15.2 clients can join by setting
+EnableExperimentalJava1152=1 in [Server] in settings.ini and restarting.
+This adapter runs the existing Cuberite worlds and block set. It supports
+chunk and light streaming, movement, inventory, and basic block interactions.
+The recipe book, command suggestions, and specialised entity metadata are
+incomplete. Java 1.19.4 and display entities are future milestones.
+
 --------------------------------------------------------------------------------

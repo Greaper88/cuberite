@@ -1040,7 +1040,7 @@ void cProtocol_1_14::WriteEntityMetadata(cPacketizer & a_Pkt, const EntityMetada
 
 
 
-void cProtocol_1_14::WriteEntityMetadata(cPacketizer & a_Pkt, const cEntity & a_Entity) const
+void cProtocol_1_14::WriteEntityFlags(cPacketizer & a_Pkt, const cEntity & a_Entity) const
 {
 	// Common metadata:
 	Int8 Flags = 0;
@@ -1077,7 +1077,15 @@ void cProtocol_1_14::WriteEntityMetadata(cPacketizer & a_Pkt, const cEntity & a_
 
 	WriteEntityMetadata(a_Pkt, EntityMetadata::EntityFlags, EntityMetadataType::Byte);
 	a_Pkt.WriteBEInt8(Flags);
+}
 
+
+
+
+
+void cProtocol_1_14::WriteEntityMetadata(cPacketizer & a_Pkt, const cEntity & a_Entity) const
+{
+	WriteEntityFlags(a_Pkt, a_Entity);
 	switch (a_Entity.GetEntityType())
 	{
 		case cEntity::etPlayer:

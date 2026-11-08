@@ -35,8 +35,9 @@ class cChunkDataSerializer
 		v393,
 		v401,
 		v477,
+		v578,
 
-		Last = CacheVersion::v477
+		Last = CacheVersion::v578
 	};
 
 	/** A single cache entry containing the raw data, compressed data, and a validity flag. */
@@ -67,6 +68,8 @@ private:
 	template <auto Palette>
 	inline void Serialize393(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.13 - 1.13.2
 	inline void Serialize477(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.14 - 1.14.4
+	void Serialize578(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);
+	void Serialize578Light(int a_ChunkX, int a_ChunkZ, const ChunkLightData & a_LightData);
 
 	/** Writes all blocks in a chunk section into a series of Int64.
 	Writes start from the bit directly subsequent to the previous write's end, possibly crossing over to the next Int64. */
@@ -77,13 +80,16 @@ private:
 	inline void WriteLightSectionGrouped(const ChunkLightData::LightArray * a_BlockLights, const ChunkLightData::LightArray * a_SkyLights);
 
 	/** Finalises the data, compresses it if required, and stores it into cache. */
-	inline void CompressPacketInto(ChunkDataCache & a_Cache);
+	inline void CompressPacketInto(ContiguousByteBuffer & a_Output);
 
 	/** A staging area used to construct the chunk packet, persistent to avoid reallocating. */
 	cByteBuffer m_Packet;
 
 	/** A compressor used to compress the chunk data. */
 	CircularBufferCompressor m_Compressor;
+
+	/** Compressed light packet appended to the 1.15.2 chunk packet before sending. */
+	ContiguousByteBuffer m_LightPacket;
 
 	/** The dimension for the World this Serializer is tied to. */
 	const eDimension m_Dimension;

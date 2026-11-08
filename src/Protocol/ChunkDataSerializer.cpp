@@ -1,5 +1,6 @@
 #include "Globals.h"
 #include "ChunkDataSerializer.h"
+#include "BlockInfo.h"
 #include "Protocol/LegacyBlockFallbacks.h"
 #include "Protocol_1_8.h"
 #include "Protocol_1_9.h"
@@ -10,6 +11,7 @@
 #include "Palettes/Palette_1_13.h"
 #include "Palettes/Palette_1_13_1.h"
 #include "Palettes/Palette_1_14.h"
+#include "Palettes/Palette_1_15.h"
 
 
 
@@ -54,6 +56,67 @@ namespace
 	auto Palette477(const BLOCKTYPE a_BlockType, const NIBBLETYPE a_Meta)
 	{
 		return Palette_1_14::From(PaletteUpgrade::FromBlock(a_BlockType, a_Meta));
+	}
+
+	auto Palette578(const BLOCKTYPE a_BlockType, const NIBBLETYPE a_Meta)
+	{
+		return Palette_1_15::From(PaletteUpgrade::FromBlock(a_BlockType, a_Meta));
+	}
+
+	/** Packs the height of the first air block above the surface and motion-blocking blocks. */
+	void Write578Heightmaps(cByteBuffer & a_Packet, const ChunkBlockData & a_BlockData)
+	{
+		constexpr size_t Columns = cChunkDef::Width * cChunkDef::Width;
+		constexpr size_t BitsPerHeight = 9;  // Heights range from 0 through 256.
+		std::array<UInt64, Columns * BitsPerHeight / 64> Surface{};
+		auto MotionBlocking = Surface;
+		const auto StoreHeight = [](auto & a_Heights, size_t a_Column, UInt64 a_Height)
+		{
+			const size_t Bit = a_Column * BitsPerHeight;
+			const size_t Offset = Bit % 64;
+			a_Heights[Bit / 64] |= a_Height << Offset;
+			if (Offset + BitsPerHeight > 64)
+			{
+				a_Heights[Bit / 64 + 1] |= a_Height >> (64 - Offset);
+			}
+		};
+
+		for (size_t Column = 0; Column < Columns; ++Column)
+		{
+			size_t SurfaceHeight = 0;
+			size_t MotionHeight = 0;
+			for (size_t SectionY = cChunkDef::NumSections; (SectionY > 0) && (MotionHeight == 0); --SectionY)
+			{
+				const auto * Section = a_BlockData.GetSection(SectionY - 1);
+				if (Section == nullptr)
+				{
+					continue;
+				}
+				for (size_t Y = cChunkDef::SectionHeight; Y > 0; --Y)
+				{
+					const auto Block = (*Section)[Column + (Y - 1) * Columns];
+					const auto Height = (SectionY - 1) * cChunkDef::SectionHeight + Y;
+					if ((SurfaceHeight == 0) && (Block != E_BLOCK_AIR))
+					{
+						SurfaceHeight = Height;
+					}
+					if (cBlockInfo::IsSolid(Block) || IsBlockLiquid(Block))
+					{
+						MotionHeight = Height;
+						break;
+					}
+				}
+			}
+			StoreHeight(Surface, Column, SurfaceHeight);
+			StoreHeight(MotionBlocking, Column, MotionHeight);
+		}
+
+		cFastNBTWriter Writer;
+		Writer.AddLongArray("WORLD_SURFACE", Surface.data(), Surface.size());
+		Writer.AddLongArray("MOTION_BLOCKING", MotionBlocking.data(), MotionBlocking.size());
+		Writer.Finish();
+		const auto Data = Writer.GetResult();
+		a_Packet.WriteBuf(Data.data(), Data.size());
 	}
 }
 
@@ -135,6 +198,11 @@ void cChunkDataSerializer::SendToClients(const int a_ChunkX, const int a_ChunkZ,
 				Serialize(Client, a_ChunkX, a_ChunkZ, a_BlockData, a_LightData, a_BiomeMap, CacheVersion::v477);
 				continue;
 			}
+			case cProtocol::Version::v1_15_2:
+			{
+				Serialize(Client, a_ChunkX, a_ChunkZ, a_BlockData, a_LightData, a_BiomeMap, CacheVersion::v578);
+				continue;
+			}
 		}
 		UNREACHABLE("Unknown chunk data serialization version");
 	}
@@ -207,10 +275,21 @@ inline void cChunkDataSerializer::Serialize(const ClientHandles::value_type & a_
 			Serialize477(a_ChunkX, a_ChunkZ, a_BlockData, a_LightData, a_BiomeMap);
 			break;
 		}
+		case CacheVersion::v578:
+		{
+			Serialize578(a_ChunkX, a_ChunkZ, a_BlockData, a_LightData, a_BiomeMap);
+			break;
+		}
 	}
 
-	CompressPacketInto(Cache);
-	ASSERT(Cache.Engaged);  // Cache must be populated now
+	CompressPacketInto(Cache.ToSend);
+	if (a_CacheVersion == CacheVersion::v578)
+	{
+		Serialize578Light(a_ChunkX, a_ChunkZ, a_LightData);
+		CompressPacketInto(m_LightPacket);
+		Cache.ToSend += m_LightPacket;
+	}
+	Cache.Engaged = true;
 	a_Client->SendChunkData(a_ChunkX, a_ChunkZ, Cache.ToSend);
 }
 
@@ -557,6 +636,103 @@ inline void cChunkDataSerializer::Serialize477(const int a_ChunkX, const int a_C
 
 
 
+void cChunkDataSerializer::Serialize578(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap)
+{
+	static constexpr UInt8 BitsPerEntry = 14;
+	static constexpr size_t SectionLongCount = ChunkBlockData::SectionBlockCount * BitsPerEntry / 64;
+	static constexpr int BiomeCellWidth = 4;
+	const auto Bitmask = GetSectionBitmask(a_BlockData, a_LightData);
+
+	m_Packet.WriteVarInt32(0x22);
+	m_Packet.WriteBEInt32(a_ChunkX);
+	m_Packet.WriteBEInt32(a_ChunkZ);
+	m_Packet.WriteBool(true);
+	m_Packet.WriteVarInt32(Bitmask.first);
+	Write578Heightmaps(m_Packet, a_BlockData);
+
+	// 1.15 uses a 4 x 4 x 64 biome grid. Repeat the 2D biome samples at each height.
+	for (int Y = 0; Y < cChunkDef::Height / BiomeCellWidth; ++Y)
+	{
+		for (int Z = 0; Z < cChunkDef::Width; Z += BiomeCellWidth)
+		{
+			for (int X = 0; X < cChunkDef::Width; X += BiomeCellWidth)
+			{
+				m_Packet.WriteBEUInt32(a_BiomeMap[X + cChunkDef::Width * Z]);
+			}
+		}
+	}
+
+	const size_t SectionBytes = 2 + 1 + cByteBuffer::GetVarIntSize(SectionLongCount) + SectionLongCount * sizeof(UInt64);
+	m_Packet.WriteVarInt32(static_cast<UInt32>(SectionBytes * Bitmask.second));
+	ChunkDef_ForEachSection(a_BlockData, a_LightData,
+	{
+		const auto Count = (Blocks == nullptr) ? 0 : std::count_if(Blocks->begin(), Blocks->end(), [](BLOCKTYPE a_Block)
+		{
+			return a_Block != E_BLOCK_AIR;
+		});
+		m_Packet.WriteBEUInt16(static_cast<UInt16>(Count));
+		m_Packet.WriteBEUInt8(BitsPerEntry);
+		m_Packet.WriteVarInt32(SectionLongCount);
+		WriteBlockSectionSeamless<&Palette578>(Blocks, Metas, BitsPerEntry);
+	});
+	m_Packet.WriteVarInt32(0);  // Block entities are sent separately by the chunk sender.
+}
+
+
+
+
+
+void cChunkDataSerializer::Serialize578Light(int a_ChunkX, int a_ChunkZ, const ChunkLightData & a_LightData)
+{
+	// Bits 0 and 17 represent the sections just below and above the world.
+	const UInt32 AllSections = (1u << (cChunkDef::NumSections + 2)) - 1;
+	const UInt32 SkyMask = (m_Dimension == dimOverworld) ? (AllSections & ~1u) : 0;
+	UInt32 BlockMask = 0;
+	for (size_t Y = 0; Y < cChunkDef::NumSections; ++Y)
+	{
+		if (a_LightData.GetBlockLightSection(Y) != nullptr)
+		{
+			BlockMask |= 1u << (Y + 1);
+		}
+	}
+
+	m_Packet.WriteVarInt32(0x25);
+	m_Packet.WriteVarInt32(static_cast<UInt32>(a_ChunkX));
+	m_Packet.WriteVarInt32(static_cast<UInt32>(a_ChunkZ));
+	m_Packet.WriteVarInt32(SkyMask);
+	m_Packet.WriteVarInt32(BlockMask);
+	m_Packet.WriteVarInt32(AllSections & ~SkyMask);
+	m_Packet.WriteVarInt32(AllSections & ~BlockMask);
+	if (SkyMask != 0)
+	{
+		for (size_t Y = 0; Y <= cChunkDef::NumSections; ++Y)
+		{
+			const auto * Sky = (Y == cChunkDef::NumSections) ? nullptr : a_LightData.GetSkyLightSection(Y);
+			m_Packet.WriteVarInt32(ChunkLightData::SectionLightCount);
+			if (Sky == nullptr)
+			{
+				m_Packet.WriteBuf(ChunkLightData::SectionLightCount, ChunkLightData::DefaultSkyLightValue);
+			}
+			else
+			{
+				m_Packet.WriteBuf(Sky->data(), Sky->size());
+			}
+		}
+	}
+	for (size_t Y = 0; Y < cChunkDef::NumSections; ++Y)
+	{
+		if (const auto * Block = a_LightData.GetBlockLightSection(Y); Block != nullptr)
+		{
+			m_Packet.WriteVarInt32(ChunkLightData::SectionLightCount);
+			m_Packet.WriteBuf(Block->data(), Block->size());
+		}
+	}
+}
+
+
+
+
+
 template <auto Palette>
 inline void cChunkDataSerializer::WriteBlockSectionSeamless(const ChunkBlockData::BlockArray * a_Blocks, const ChunkBlockData::MetaArray * a_Metas, const UInt8 a_BitsPerEntry)
 {
@@ -637,12 +813,10 @@ inline void cChunkDataSerializer::WriteLightSectionGrouped(const ChunkLightData:
 
 
 
-inline void cChunkDataSerializer::CompressPacketInto(ChunkDataCache & a_Cache)
+inline void cChunkDataSerializer::CompressPacketInto(ContiguousByteBuffer & a_Output)
 {
 	m_Compressor.ReadFrom(m_Packet);
 	m_Packet.CommitRead();
 
-	cProtocol_1_8_0::CompressPacket(m_Compressor, a_Cache.ToSend);
-
-	a_Cache.Engaged = true;
+	cProtocol_1_8_0::CompressPacket(m_Compressor, a_Output);
 }

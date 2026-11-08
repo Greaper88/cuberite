@@ -57,6 +57,7 @@ AString cPacketizer::PacketTypeToStr(cProtocol::ePacketType a_PacketType)
 {
 	switch (a_PacketType)
 	{
+		case cProtocol::pktAcknowledgeBlockDig:    return "pktAcknowledgeBlockDig";
 		case cProtocol::pktAttachEntity:           return "pktAttachEntity";
 		case cProtocol::pktBlockAction:            return "pktBlockAction";
 		case cProtocol::pktBlockBreakAnim:         return "pktBlockBreakAnim";
@@ -65,6 +66,8 @@ AString cPacketizer::PacketTypeToStr(cProtocol::ePacketType a_PacketType)
 		case cProtocol::pktBossBar:                return "pktBossBar";
 		case cProtocol::pktCameraSetTo:            return "pktCameraSetTo";
 		case cProtocol::pktChatRaw:                return "pktChatRaw";
+		case cProtocol::pktChunkCenter:            return "pktChunkCenter";
+		case cProtocol::pktChunkViewDistance:      return "pktChunkViewDistance";
 		case cProtocol::pktCollectEntity:          return "pktCollectEntity";
 		case cProtocol::pktDestroyEntity:          return "pktDestroyEntity";
 		case cProtocol::pktDifficulty:             return "pktDifficulty";

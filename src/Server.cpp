@@ -210,7 +210,12 @@ bool cServer::InitServer(cSettingsRepositoryInterface & a_Settings, bool a_Shoul
 		m_ResourcePacksByVersion.emplace(ProtocolVersion, std::move(Pack));
 	}
 
+	m_ExperimentalJava1152 = a_Settings.GetValueSetB("Server", "EnableExperimentalJava1152", false);
 	LOGINFO("Compatible clients: %s", MCS_CLIENT_VERSIONS);
+	if (m_ExperimentalJava1152)
+	{
+		LOGINFO("Experimental Java 1.15.2 protocol enabled.");
+	}
 	LOGD("Compatible protocol versions %s", MCS_PROTOCOL_VERSIONS);
 
 	m_Ports = ReadUpgradeIniPorts(a_Settings, "Server", "Ports", "Port", "PortsIPv6", "25565");

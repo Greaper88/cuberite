@@ -66,6 +66,9 @@ protected:
 	virtual void WriteEntityMetadata(cPacketizer & a_Pkt, EntityMetadata a_Metadata, EntityMetadataType a_FieldType) const override;
 	virtual void WriteEntityMetadata(cPacketizer & a_Pkt, const cEntity & a_Entity) const override;
 	virtual void WriteMobMetadata(cPacketizer & a_Pkt, const cMonster & a_Mob) const override;
+
+	/** Writes the base entity flags shared by 1.14 and later protocols. */
+	void WriteEntityFlags(cPacketizer & a_Pkt, const cEntity & a_Entity) const;
 };
 
 

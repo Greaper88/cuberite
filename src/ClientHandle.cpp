@@ -512,6 +512,8 @@ void cClientHandle::StreamNextChunks(void)
 		return;
 	}
 
+	m_Protocol->SendChunkView({ ChunkPosX, ChunkPosZ }, m_CurrentViewDistance);
+
 	// Player moved chunks and / or loading is not finished, reset to bogus (GH #4531):
 	m_LastStreamedChunkX = std::numeric_limits<decltype(m_LastStreamedChunkX)>::max();
 	m_LastStreamedChunkZ = std::numeric_limits<decltype(m_LastStreamedChunkZ)>::max();

@@ -97,6 +97,9 @@ public:
 	/** Returns true if clients must accept resource pack. This is read from the settings. */
 	bool ShouldRequireResourcePack(void) { return m_RequireResourcePack; }
 
+	/** Returns whether the experimental Java 1.15.2 protocol is enabled. */
+	bool IsExperimentalJava1152Enabled() const { return m_ExperimentalJava1152; }
+
 	struct cResourcePack
 	{
 		AString Url;
@@ -234,6 +237,7 @@ private:
 	size_t m_MaxPlayers;
 	bool m_bIsHardcore;
 	bool m_RequireResourcePack;
+	bool m_ExperimentalJava1152 = false;
 	cResourcePack m_DefaultResourcePack;
 	std::map<UInt32, cResourcePack> m_ResourcePacksByVersion;
 	AString m_CustomRedirectUrl;

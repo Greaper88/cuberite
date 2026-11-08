@@ -131,7 +131,10 @@ public:
 		pktWindowItems,
 		pktWindowClose,
 		pktWindowOpen,
-		pktWindowProperty
+		pktWindowProperty,
+		pktAcknowledgeBlockDig,
+		pktChunkCenter,
+		pktChunkViewDistance
 	};
 
 	enum class EntityMetadata
@@ -351,7 +354,8 @@ public:
 		v1_14_1 = 480,
 		v1_14_2 = 485,
 		v1_14_3 = 490,
-		v1_14_4 = 498
+		v1_14_4 = 498,
+		v1_15_2 = 578
 	};
 
 	enum State
@@ -387,6 +391,8 @@ public:
 	virtual void SendChat                       (const cCompositeChat & a_Message, eChatType a_Type, bool a_ShouldUseChatPrefixes) = 0;
 	virtual void SendChatRaw                    (const AString & a_MessageRaw, eChatType a_Type) = 0;
 	virtual void SendChunkData                  (ContiguousByteBufferView a_ChunkData) = 0;
+	/** Updates the client's chunk cache before streaming begins around a new position. */
+	virtual void SendChunkView(cChunkCoords, int) {}
 	virtual void SendCollectEntity              (const cEntity & a_Collected, const cEntity & a_Collector, unsigned a_Count) = 0;
 	virtual void SendDestroyEntity              (const cEntity & a_Entity) = 0;
 	virtual void SendDetachEntity               (const cEntity & a_Entity, const cEntity & a_PreviousVehicle) = 0;
