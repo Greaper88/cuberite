@@ -29,6 +29,9 @@ class cChunkDataSerializer
 		v47,
 		v107,
 		v110,
+		v210,
+		v315,
+		v335,
 		v393,
 		v401,
 		v477,
@@ -59,7 +62,8 @@ private:
 
 	inline void Serialize47 (int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.8
 	inline void Serialize107(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.9
-	inline void Serialize110(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.9.4
+	template <auto Palette>
+	inline void Serialize110(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.9.4 - 1.12.2
 	template <auto Palette>
 	inline void Serialize393(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.13 - 1.13.2
 	inline void Serialize477(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.14 - 1.14.4

@@ -15,6 +15,7 @@ Implements the 1.9 protocol classes:
 
 #include "Globals.h"
 #include "Protocol_1_9.h"
+#include "Protocol/LegacyBlockFallbacks.h"
 #include "../mbedTLS++/Sha1Checksum.h"
 #include "Packetizer.h"
 
@@ -1777,21 +1778,16 @@ void cProtocol_1_9_0::WriteEntityMetadata(cPacketizer & a_Pkt, const cEntity & a
 
 void cProtocol_1_9_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 {
-	short ItemType = a_Item.m_ItemType;
-	ASSERT(ItemType >= -1);  // Check validity of packets in debug runtime
-	if (ItemType <= 0)
-	{
-		// Fix, to make sure no invalid values are sent.
-		ItemType = -1;
-	}
-
+	ASSERT(a_Item.m_ItemType >= -1);  // Check validity of packets in debug runtime
 	if (a_Item.IsEmpty())
 	{
 		a_Pkt.WriteBEInt16(-1);
 		return;
 	}
 
-	if ((ItemType == E_ITEM_POTION) && ((a_Item.m_ItemDamage & 0x4000) != 0))
+	const auto [ItemType, ItemDamage] = LegacyBlockFallbacks::ForItem(GetProtocolVersion(), a_Item.m_ItemType, a_Item.m_ItemDamage);
+	const bool IsFallback = ItemType != a_Item.m_ItemType;
+	if ((ItemType == E_ITEM_POTION) && ((ItemDamage & 0x4000) != 0))
 	{
 		// Ugly special case for splash potion ids which changed in 1.9; this can be removed when the new 1.9 ids are implemented
 		a_Pkt.WriteBEInt16(438);  // minecraft:splash_potion
@@ -1809,10 +1805,10 @@ void cProtocol_1_9_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 	}
 	else
 	{
-		a_Pkt.WriteBEInt16(a_Item.m_ItemDamage);
+		a_Pkt.WriteBEInt16(ItemDamage);
 	}
 
-	if (a_Item.m_Enchantments.IsEmpty() && a_Item.IsBothNameAndLoreEmpty() && (ItemType != E_ITEM_FIREWORK_ROCKET) && (ItemType != E_ITEM_FIREWORK_STAR) && !a_Item.m_ItemColor.IsValid() && (ItemType != E_ITEM_POTION) && (ItemType != E_ITEM_SPAWN_EGG))
+	if (!IsFallback && a_Item.m_Enchantments.IsEmpty() && a_Item.IsBothNameAndLoreEmpty() && (ItemType != E_ITEM_FIREWORK_ROCKET) && (ItemType != E_ITEM_FIREWORK_STAR) && !a_Item.m_ItemColor.IsValid() && (ItemType != E_ITEM_POTION) && (ItemType != E_ITEM_SPAWN_EGG))
 	{
 		a_Pkt.WriteBEInt8(0);
 		return;
@@ -1821,6 +1817,10 @@ void cProtocol_1_9_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 
 	// Send the enchantments and custom names:
 	cFastNBTWriter Writer;
+	if (IsFallback)
+	{
+		LegacyBlockFallbacks::WriteItemIdentity(Writer, a_Item);
+	}
 	if (a_Item.m_RepairCost != 0)
 	{
 		Writer.AddInt("RepairCost", a_Item.m_RepairCost);

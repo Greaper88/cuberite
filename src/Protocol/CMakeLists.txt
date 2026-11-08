@@ -4,6 +4,7 @@ target_sources(
 	Authenticator.cpp
 	ChunkDataSerializer.cpp
 	ForgeHandshake.cpp
+	LegacyBlockFallbacks.cpp
 	MojangAPI.cpp
 	Packetizer.cpp
 	Protocol_1_8.cpp
@@ -19,6 +20,8 @@ target_sources(
 	Authenticator.h
 	ChunkDataSerializer.h
 	ForgeHandshake.h
+	LegacyBlockFallbacks.h
+	LegacyPackBlocks.inc
 	MojangAPI.h
 	Packetizer.h
 	Protocol.h

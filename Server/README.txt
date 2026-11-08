@@ -25,4 +25,24 @@ Replace the example URLs and hashes with your own. Clients without an entry
 use ResourcePackUrl and the optional ResourcePackSha1 from [Server].
 RequireResourcePack in [Server] also applies to the version-specific offers.
 
+Older Java clients automatically receive a supported substitute for missing
+blocks. Mining, placement and block behavior use the real block on the
+server. Some substitutes differ in shape, color or client-side prediction.
+
+From the source checkout, generate the optional packs with Python 3 and your
+local vanilla Java 1.12.2 client JAR. Point --output at a directory served by
+your HTTP server and --base-url at its client-accessible URL.
+
+    python3 Tools/LegacyResourcePacks/generate.py /path/to/1.12.2.jar --output /path/to/web/packs --base-url https://example.org/packs
+
+Merge the printed entries into [ResourcePacks] in settings.ini and restart
+Cuberite. The ZIPs use content-based names and the entries include their
+SHA-1 hashes. The generator reads the textures locally from the client JAR.
+
+The 1.8 pack textures purpur blocks and end stone bricks. The 1.8 and 1.9
+packs also texture magma, nether wart blocks and red nether bricks. Other
+missing blocks, including concrete on 1.11, use vanilla look-alikes. Held
+and dropped block items also use look-alikes. Players who skip the pack see
+the ordinary substitute models.
+
 --------------------------------------------------------------------------------

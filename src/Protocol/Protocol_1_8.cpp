@@ -9,6 +9,7 @@ Implements the 1.8 protocol classes:
 
 #include "Globals.h"
 #include "Protocol_1_8.h"
+#include "Protocol/LegacyBlockFallbacks.h"
 #include "main.h"
 #include "../mbedTLS++/Sha1Checksum.h"
 #include "Packetizer.h"
@@ -190,7 +191,7 @@ void cProtocol_1_8_0::SendBlockAction(Vector3i a_BlockPos, char a_Byte1, char a_
 	Pkt.WriteXYZPosition64(a_BlockPos);
 	Pkt.WriteBEInt8(a_Byte1);
 	Pkt.WriteBEInt8(a_Byte2);
-	Pkt.WriteVarInt32(a_BlockType);
+	Pkt.WriteVarInt32(LegacyBlockFallbacks::ForBlock(GetProtocolVersion(), a_BlockType, 0).Type);
 }
 
 
@@ -217,7 +218,7 @@ void cProtocol_1_8_0::SendBlockChange(Vector3i a_BlockPos, BLOCKTYPE a_BlockType
 
 	cPacketizer Pkt(*this, pktBlockChange);
 	Pkt.WriteXYZPosition64(a_BlockPos);
-	Pkt.WriteVarInt32((static_cast<UInt32>(a_BlockType) << 4) | (static_cast<UInt32>(a_BlockMeta) & 15));
+	Pkt.WriteVarInt32(LegacyBlockFallbacks::ForBlock(GetProtocolVersion(), a_BlockType, a_BlockMeta).Packed());
 }
 
 
@@ -233,11 +234,12 @@ void cProtocol_1_8_0::SendBlockChanges(int a_ChunkX, int a_ChunkZ, const sSetBlo
 	Pkt.WriteBEInt32(a_ChunkZ);
 	Pkt.WriteVarInt32(static_cast<UInt32>(a_Changes.size()));
 
+	const auto ProtocolVersion = GetProtocolVersion();
 	for (const auto & Change : a_Changes)
 	{
 		Int16 Coords = static_cast<Int16>(Change.m_RelY | (Change.m_RelZ << 8) | (Change.m_RelX << 12));
 		Pkt.WriteBEInt16(Coords);
-		Pkt.WriteVarInt32(static_cast<UInt32>(Change.m_BlockType & 0xFFF) << 4 | (Change.m_BlockMeta & 0xF));
+		Pkt.WriteVarInt32(LegacyBlockFallbacks::ForBlock(ProtocolVersion, Change.m_BlockType, Change.m_BlockMeta).Packed());
 	}
 }
 
@@ -1420,7 +1422,7 @@ void cProtocol_1_8_0::SendSoundParticleEffect(const EffectID a_EffectID, Vector3
 	cPacketizer Pkt(*this, pktSoundParticleEffect);
 	Pkt.WriteBEInt32(static_cast<int>(a_EffectID));
 	Pkt.WriteXYZPosition64(a_Origin);
-	Pkt.WriteBEInt32(a_Data);
+	Pkt.WriteBEInt32((a_EffectID == EffectID::PARTICLE_BLOCK_BREAK) ? LegacyBlockFallbacks::ForEffect(GetProtocolVersion(), a_Data) : a_Data);
 	Pkt.WriteBool(false);
 }
 
@@ -1446,7 +1448,8 @@ void cProtocol_1_8_0::SendSpawnEntity(const cEntity & a_Entity)
 	else if (a_Entity.IsFallingBlock())
 	{
 		const auto & Block = static_cast<const cFallingBlock &>(a_Entity);
-		EntityData = Block.GetBlockType() | (static_cast<Int32>(Block.GetBlockMeta()) << 12);
+		const Int32 State = Block.GetBlockType() | (static_cast<Int32>(Block.GetBlockMeta()) << 12);
+		EntityData = LegacyBlockFallbacks::ForEffect(GetProtocolVersion(), State);
 	}
 	else if (a_Entity.IsFloater())
 	{
@@ -2930,6 +2933,8 @@ void cProtocol_1_8_0::ParseItemMetadata(cItem & a_Item, const ContiguousByteBuff
 		return;
 	}
 
+	LegacyBlockFallbacks::RestoreItemIdentity(GetProtocolVersion(), a_Item, NBT);
+
 	// Load enchantments and custom display names from the NBT data:
 	for (int tag = NBT.GetFirstChild(NBT.GetRoot()); tag >= 0; tag = NBT.GetNextSibling(tag))
 	{
@@ -3396,25 +3401,20 @@ void cProtocol_1_8_0::WriteEntityProperties(cPacketizer & a_Pkt, const cEntity &
 
 void cProtocol_1_8_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 {
-	short ItemType = a_Item.m_ItemType;
-	ASSERT(ItemType >= -1);  // Check validity of packets in debug runtime
-	if (ItemType <= 0)
-	{
-		// Fix, to make sure no invalid values are sent.
-		ItemType = -1;
-	}
-
+	ASSERT(a_Item.m_ItemType >= -1);  // Check validity of packets in debug runtime
 	if (a_Item.IsEmpty())
 	{
 		a_Pkt.WriteBEInt16(-1);
 		return;
 	}
 
+	const auto [ItemType, ItemDamage] = LegacyBlockFallbacks::ForItem(GetProtocolVersion(), a_Item.m_ItemType, a_Item.m_ItemDamage);
+	const bool IsFallback = ItemType != a_Item.m_ItemType;
 	a_Pkt.WriteBEInt16(ItemType);
 	a_Pkt.WriteBEInt8(a_Item.m_ItemCount);
-	a_Pkt.WriteBEInt16(a_Item.m_ItemDamage);
+	a_Pkt.WriteBEInt16(ItemDamage);
 
-	if (a_Item.m_Enchantments.IsEmpty() && a_Item.IsBothNameAndLoreEmpty() && (a_Item.m_ItemType != E_ITEM_FIREWORK_ROCKET) && (a_Item.m_ItemType != E_ITEM_FIREWORK_STAR) && !a_Item.m_ItemColor.IsValid())
+	if (!IsFallback && a_Item.m_Enchantments.IsEmpty() && a_Item.IsBothNameAndLoreEmpty() && (a_Item.m_ItemType != E_ITEM_FIREWORK_ROCKET) && (a_Item.m_ItemType != E_ITEM_FIREWORK_STAR) && !a_Item.m_ItemColor.IsValid())
 	{
 		a_Pkt.WriteBEInt8(0);
 		return;
@@ -3423,6 +3423,10 @@ void cProtocol_1_8_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 
 	// Send the enchantments and custom names:
 	cFastNBTWriter Writer;
+	if (IsFallback)
+	{
+		LegacyBlockFallbacks::WriteItemIdentity(Writer, a_Item);
+	}
 	if (a_Item.m_RepairCost != 0)
 	{
 		Writer.AddInt("RepairCost", a_Item.m_RepairCost);
