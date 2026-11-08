@@ -1262,10 +1262,18 @@ void cProtocol_1_8_0::SendResetTitle(void)
 
 
 
-void cProtocol_1_8_0::SendResourcePack(const AString & a_ResourcePackUrl)
+void cProtocol_1_8_0::SendResourcePack(const AString & a_ResourcePackUrl, const AString & a_Sha1)
 {
 	cPacketizer Pkt(*this, pktResourcePack);
+	Pkt.WriteString(a_ResourcePackUrl);
 
+	if (!a_Sha1.empty())
+	{
+		Pkt.WriteString(a_Sha1);
+		return;
+	}
+
+	// Preserve the existing URL-only behavior for settings and Lua callers without a ZIP digest.
 	cSha1Checksum Checksum;
 	Checksum.Update(reinterpret_cast<const Byte *>(a_ResourcePackUrl.c_str()), a_ResourcePackUrl.size());
 	Byte Digest[20];
@@ -1273,7 +1281,6 @@ void cProtocol_1_8_0::SendResourcePack(const AString & a_ResourcePackUrl)
 	AString Sha1Output;
 	cSha1Checksum::DigestToHex(Digest, Sha1Output);
 
-	Pkt.WriteString(a_ResourcePackUrl);
 	Pkt.WriteString(Sha1Output);
 }
 

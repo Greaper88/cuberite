@@ -427,6 +427,7 @@ UInt32 cProtocol_1_13::GetPacketID(ePacketType a_PacketType) const
 		case pktPlayerMoveLook:         return 0x32;
 		case pktPluginMessage:          return 0x19;
 		case pktRemoveEntityEffect:     return 0x36;
+		case pktResourcePack:           return 0x37;
 		case pktRespawn:                return 0x38;
 		case pktScoreboardObjective:    return 0x45;
 		case pktSoundEffect:            return 0x1a;
@@ -612,7 +613,7 @@ bool cProtocol_1_13::HandlePacket(cByteBuffer & a_ByteBuffer, UInt32 a_PacketTyp
 		case 0x1a: HandlePacketSteerVehicle(a_ByteBuffer); return true;
 		case 0x1b: HandlePacketCraftingBookData(a_ByteBuffer); return true;
 		case 0x1c: HandlePacketNameItem(a_ByteBuffer); return true;
-		case 0x1d: break;  // Resource pack status - not yet implemented
+		case 0x1d: HandlePacketResourcePackStatus(a_ByteBuffer); return true;
 		case 0x1e: HandlePacketAdvancementTab(a_ByteBuffer); return true;
 		case 0x20: HandlePacketSetBeaconEffect(a_ByteBuffer); return true;
 		case 0x21: HandlePacketSlotSelect(a_ByteBuffer); return true;

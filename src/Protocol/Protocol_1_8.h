@@ -101,7 +101,7 @@ public:
 	virtual void SendPluginMessage              (const AString & a_Channel, ContiguousByteBufferView a_Message) override;
 	virtual void SendRemoveEntityEffect         (const cEntity & a_Entity, int a_EffectID) override;
 	virtual void SendResetTitle                 (void) override;
-	virtual void SendResourcePack               (const AString & a_ResourcePackUrl) override;
+	virtual void SendResourcePack               (const AString & a_ResourcePackUrl, const AString & a_Sha1) override;
 	virtual void SendRespawn                    (eDimension a_Dimension) override;
 	virtual void SendSoundEffect                (const AString & a_SoundName, Vector3d a_Origin, float a_Volume, float a_Pitch) override;
 	virtual void SendScoreboardObjective        (const AString & a_Name, const AString & a_DisplayName, Byte a_Mode) override;

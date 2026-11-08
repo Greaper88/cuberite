@@ -97,7 +97,14 @@ public:
 	/** Returns true if clients must accept resource pack. This is read from the settings. */
 	bool ShouldRequireResourcePack(void) { return m_RequireResourcePack; }
 
-	const AString & GetResourcePackUrl(void) { return m_ResourcePackUrl; }
+	struct cResourcePack
+	{
+		AString Url;
+		AString Sha1;
+	};
+
+	/** Returns the pack configured for this protocol, or the default pack. An empty URL means no pack is offered. */
+	const cResourcePack & GetResourcePack(UInt32 a_ProtocolVersion) const;
 
 	std::string_view GetCustomRedirectUrl(void) { return m_CustomRedirectUrl; }
 
@@ -227,7 +234,8 @@ private:
 	size_t m_MaxPlayers;
 	bool m_bIsHardcore;
 	bool m_RequireResourcePack;
-	AString m_ResourcePackUrl;
+	cResourcePack m_DefaultResourcePack;
+	std::map<UInt32, cResourcePack> m_ResourcePacksByVersion;
 	AString m_CustomRedirectUrl;
 
 	/** Map of protocol version to Forge mods (map of ModName -> ModVersionString) */

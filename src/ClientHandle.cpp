@@ -2161,9 +2161,10 @@ void cClientHandle::Tick(std::chrono::milliseconds a_Dt)
 			m_State = csPlaying;
 
 			// Send resource pack (after a MoveLook, because sending it before the initial MoveLook cancels the download screen):
-			if (const auto & ResourcePackUrl = cRoot::Get()->GetServer()->GetResourcePackUrl(); !ResourcePackUrl.empty())
+			const auto & Pack = cRoot::Get()->GetServer()->GetResourcePack(GetProtocolVersion());
+			if (!Pack.Url.empty())
 			{
-				SendResourcePack(ResourcePackUrl);
+				m_Protocol->SendResourcePack(Pack.Url, Pack.Sha1);
 			}
 		}
 	}  // lock(m_CSState)

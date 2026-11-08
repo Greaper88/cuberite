@@ -430,7 +430,7 @@ public:
 	virtual void SendPluginMessage              (const AString & a_Channel, ContiguousByteBufferView a_Message) = 0;
 	virtual void SendRemoveEntityEffect         (const cEntity & a_Entity, int a_EffectID) = 0;
 	virtual void SendResetTitle                 (void) = 0;
-	virtual void SendResourcePack               (const AString & a_ResourcePackUrl) = 0;
+	virtual void SendResourcePack               (const AString & a_ResourcePackUrl, const AString & a_Sha1 = "") = 0;
 	virtual void SendRespawn                    (eDimension a_Dimension) = 0;
 	virtual void SendExperience                 (void) = 0;
 	virtual void SendExperienceOrb              (const cExpOrb & a_ExpOrb) = 0;

@@ -29,6 +29,18 @@
 
 
 
+namespace
+{
+	bool IsResourcePackSha1(const AString & a_Sha1)
+	{
+		return (a_Sha1.size() == 40) && (a_Sha1.find_first_not_of("0123456789abcdefABCDEF") == AString::npos);
+	}
+}
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // cServerListenCallbacks:
 
@@ -159,7 +171,6 @@ bool cServer::InitServer(cSettingsRepositoryInterface & a_Settings, bool a_Shoul
 	m_bIsHardcore = a_Settings.GetValueSetB("Server", "HardcoreEnabled", false);
 	m_bAllowMultiLogin = a_Settings.GetValueSetB("Server", "AllowMultiLogin", false);
 	m_RequireResourcePack = a_Settings.GetValueSetB("Server", "RequireResourcePack", false);
-	m_ResourcePackUrl = a_Settings.GetValueSet("Server", "ResourcePackUrl", "");
 	m_CustomRedirectUrl = a_Settings.GetValueSet("Server", "CustomRedirectUrl", "https://youtu.be/dQw4w9WgXcQ");
 
 	m_FaviconData = Base64Encode(cFile::ReadWholeFile(AString("favicon.png")));  // Will return empty string if file nonexistant; client doesn't mind
@@ -168,6 +179,35 @@ bool cServer::InitServer(cSettingsRepositoryInterface & a_Settings, bool a_Shoul
 	{
 		LOGERROR("ERROR: Trying to initialize server while server is already running!");
 		return false;
+	}
+
+	m_DefaultResourcePack.Url = a_Settings.GetValueSet("Server", "ResourcePackUrl", "");
+	m_DefaultResourcePack.Sha1 = StrToLower(a_Settings.GetValueSet("Server", "ResourcePackSha1", ""));
+	if (!m_DefaultResourcePack.Sha1.empty() && !IsResourcePackSha1(m_DefaultResourcePack.Sha1))
+	{
+		LOGWARNING("Ignoring invalid Server.ResourcePackSha1. Expected the ZIP file's 40-digit hexadecimal SHA-1.");
+		m_DefaultResourcePack.Sha1.clear();
+	}
+
+	m_ResourcePacksByVersion.clear();
+	for (const auto & [Version, Value] : a_Settings.GetValues("ResourcePacks"))
+	{
+		UInt32 ProtocolVersion;
+		cResourcePack Pack;
+		std::istringstream Fields(Value);
+		AString Extra;
+		if (
+			!StringToInteger(Version, ProtocolVersion) || (ProtocolVersion == 0) ||
+			!(Fields >> Pack.Url >> Pack.Sha1) || (Fields >> Extra) ||
+			!IsResourcePackSha1(Pack.Sha1)
+		)
+		{
+			LOGWARNING("Ignoring invalid ResourcePacks entry '%s'. Expected protocol=URL SHA-1.", Version.c_str());
+			continue;
+		}
+
+		Pack.Sha1 = StrToLower(Pack.Sha1);
+		m_ResourcePacksByVersion.emplace(ProtocolVersion, std::move(Pack));
 	}
 
 	LOGINFO("Compatible clients: %s", MCS_CLIENT_VERSIONS);
@@ -230,6 +270,16 @@ bool cServer::InitServer(cSettingsRepositoryInterface & a_Settings, bool a_Shoul
 	PrepareKeys();
 
 	return true;
+}
+
+
+
+
+
+const cServer::cResourcePack & cServer::GetResourcePack(UInt32 a_ProtocolVersion) const
+{
+	const auto Pack = m_ResourcePacksByVersion.find(a_ProtocolVersion);
+	return (Pack != m_ResourcePacksByVersion.end()) ? Pack->second : m_DefaultResourcePack;
 }
 
 
