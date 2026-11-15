@@ -269,12 +269,12 @@ enum ENUM_BLOCK_TYPE : BLOCKTYPE
 	E_BLOCK_BLACK_GLAZED_TERRACOTTA = 250,
 	E_BLOCK_CONCRETE = 251,
 	E_BLOCK_CONCRETE_POWDER = 252,
-	// ...
+	E_BLOCK_BEEHIVE = 253,  // Shared engine ID for Java beehives and bee nests
 	E_BLOCK_STRUCTURE_BLOCK = 255,
 
 	// Keep these two as the last values. Update the last block value to the last block with an id less than 255 when adding another block
 	// IsValidBlock() depends on this (255 gets checked additionally because there is a gap. See https://minecraft.wiki/w/Data_values#Block_IDs
-	E_BLOCK_NUMBER_OF_TYPES = E_BLOCK_CONCRETE_POWDER + 1,  ///< Number of individual (different) blocktypes
+	E_BLOCK_NUMBER_OF_TYPES = E_BLOCK_BEEHIVE + 1,  ///< Number of individual (different) blocktypes
 	E_BLOCK_MAX_TYPE_ID = E_BLOCK_NUMBER_OF_TYPES - 1,  ///< Maximum BlockType number used
 
 	E_BLOCK_UNFINISHED = 254,  // Special type used as a placeholder, signifying that the block lacks implementation
@@ -502,6 +502,11 @@ enum ENUM_ITEM_TYPE : short
 	E_ITEM_NUMBER_OF_CONSECUTIVE_TYPES,  ///< Number of individual (different) consecutive itemtypes
 	E_ITEM_MAX_CONSECUTIVE_TYPE_ID = E_ITEM_NUMBER_OF_CONSECUTIVE_TYPES - 1,  ///< Maximum consecutive ItemType number used
 
+	E_ITEM_BEE_NEST = 500,
+	E_ITEM_BEE_SPAWN_EGG = 501,
+	E_ITEM_HONEY_BOTTLE = 502,
+	E_ITEM_HONEYCOMB = 503,
+
 	E_ITEM_FIRST_DISC = 2256,
 	E_ITEM_13_DISC = 2256,
 	E_ITEM_CAT_DISC = 2257,
@@ -592,6 +597,13 @@ enum ENUM_BLOCK_META : NIBBLETYPE
 	E_META_CARPET_GREEN      = 13,
 	E_META_CARPET_RED        = 14,
 	E_META_CARPET_BLACK      = 15,
+
+	// E_BLOCK_BEEHIVE metas. Honey level lives on the block entity.
+	E_META_BEEHIVE_FACING_ZM = 0,
+	E_META_BEEHIVE_FACING_ZP = 1,
+	E_META_BEEHIVE_FACING_XM = 2,
+	E_META_BEEHIVE_FACING_XP = 3,
+	E_META_BEEHIVE_NEST = 4,
 
 	// E_BLOCK_CHEST metas:
 	E_META_CHEST_FACING_ZM = 2,

@@ -1314,6 +1314,8 @@ void cProtocol_1_9_0::ParseItemMetadata(cItem & a_Item, const ContiguousByteBuff
 		return;
 	}
 
+	LegacyBlockFallbacks::RestoreItemIdentity(GetProtocolVersion(), a_Item, NBT);
+
 	// Load enchantments and custom display names from the NBT data:
 	for (int tag = NBT.GetFirstChild(NBT.GetRoot()); tag >= 0; tag = NBT.GetNextSibling(tag))
 	{
@@ -2335,6 +2337,7 @@ void cProtocol_1_9_0::WriteMobMetadata(cPacketizer & a_Pkt, const cMonster & a_M
 		case mtCaveSpider:
 		case mtEnderDragon:
 		case mtEndermite:
+		case mtBee:  // Older clients display a bat and use its default flags.
 		case mtGiant:
 		case mtIronGolem:
 		case mtMooshroom:

@@ -1,13 +1,31 @@
 #include "Globals.h"
 
+#include "BlockType.h"
 #include "Upgrade.h"
 #include "Registries/BlockStates.h"
 
 namespace PaletteUpgrade
 {
+	BlockState FromBeeHome(const NIBBLETYPE Meta, const UInt8 HoneyLevel)
+	{
+		static constexpr eBlockFace Facings[] = { BLOCK_FACE_ZM, BLOCK_FACE_ZP, BLOCK_FACE_XM, BLOCK_FACE_XP };
+		const auto Facing = Facings[Meta & 3];
+		const auto Level = std::min<UInt8>(HoneyLevel, 5);
+		return ((Meta & E_META_BEEHIVE_NEST) != 0) ? Block::BeeNest::BeeNest(Facing, Level) : Block::Beehive::Beehive(Facing, Level);
+	}
+
+
+
+
+
 	BlockState FromBlock(const BLOCKTYPE Block, const NIBBLETYPE Meta)
 	{
 		using namespace Block;
+
+		if (Block == E_BLOCK_BEEHIVE)
+		{
+			return FromBeeHome(Meta, 0);
+		}
 
 		switch ((Block << 4) | Meta)
 		{
@@ -1709,6 +1727,11 @@ namespace PaletteUpgrade
 	{
 		switch ((Item << 16) | Damage)
 		{
+			case (E_BLOCK_BEEHIVE << 16) | 0:       return Item::Beehive;
+			case (E_ITEM_BEE_NEST << 16) | 0:       return Item::BeeNest;
+			case (E_ITEM_BEE_SPAWN_EGG << 16) | 0:  return Item::BeeSpawnEgg;
+			case (E_ITEM_HONEY_BOTTLE << 16) | 0:   return Item::HoneyBottle;
+			case (E_ITEM_HONEYCOMB << 16) | 0:      return Item::Honeycomb;
 			case (1 << 16) | 0: return Item::Stone;
 			case (1 << 16) | 1: return Item::Granite;
 			case (1 << 16) | 2: return Item::PolishedGranite;
@@ -2520,6 +2543,11 @@ namespace PaletteUpgrade
 	{
 		switch (ID)
 		{
+			case Item::Beehive:      return { E_BLOCK_BEEHIVE, 0 };
+			case Item::BeeNest:      return { E_ITEM_BEE_NEST, 0 };
+			case Item::BeeSpawnEgg:  return { E_ITEM_BEE_SPAWN_EGG, 0 };
+			case Item::HoneyBottle:  return { E_ITEM_HONEY_BOTTLE, 0 };
+			case Item::Honeycomb:    return { E_ITEM_HONEYCOMB, 0 };
 			case Item::Stone: return { 1, 0 };
 			case Item::Granite: return { 1, 1 };
 			case Item::PolishedGranite: return { 1, 2 };

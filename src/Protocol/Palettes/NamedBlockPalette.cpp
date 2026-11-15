@@ -154,6 +154,20 @@ namespace
 				LegacyByName[a_State.Name].push_back(a_ID);
 				States[a_ID].emplace(std::move(a_State));
 			});
+
+			// Both bee homes share a runtime block ID. The full named state retains honey_level.
+			static constexpr const char * Facings[] = {"north", "south", "west", "east"};
+			for (UInt32 Meta = 0; Meta < 8; ++Meta)
+			{
+				const auto ID = (E_BLOCK_BEEHIVE << 4) | Meta;
+				cNamedBlockState State
+				{
+					((Meta & E_META_BEEHIVE_NEST) != 0) ? "minecraft:bee_nest" : "minecraft:beehive",
+					{{"facing", Facings[Meta & 3]}, {"honey_level", "0"}}
+				};
+				LegacyByName[State.Name].push_back(ID);
+				States[ID].emplace(std::move(State));
+			}
 		}
 	};
 

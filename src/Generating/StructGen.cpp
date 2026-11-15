@@ -15,6 +15,27 @@
 ////////////////////////////////////////////////////////////////////////////////
 // cStructGenTrees:
 
+static int BeeNestChancePerThousand(EMCSBiome a_Biome)
+{
+	switch (a_Biome)
+	{
+		case biPlains:
+		case biSunflowerPlains: return 50;
+		case biFlowerForest: return 20;
+		case biForest:
+		case biForestHills:
+		case biBirchForest:
+		case biBirchForestHills:
+		case biBirchForestM:
+		case biBirchForestHillsM: return 2;
+		default: return 0;
+	}
+}
+
+
+
+
+
 void cStructGenTrees::GenFinish(cChunkDesc & a_ChunkDesc)
 {
 	int ChunkX = a_ChunkDesc.GetChunkX();
@@ -114,10 +135,11 @@ void cStructGenTrees::GenerateSingleTree(
 	}
 
 	sSetBlockVector TreeLogs, TreeOther;
+	const auto Biome = a_ChunkDesc.GetBiome(a_Pos.x, a_Pos.z);
 	GetTreeImageByBiome(
 		{ a_ChunkX * cChunkDef::Width + a_Pos.x, a_Pos.y + 1, a_ChunkZ * cChunkDef::Width + a_Pos.z },
 		m_Noise, a_Seq,
-		a_ChunkDesc.GetBiome(a_Pos.x, a_Pos.z),
+		Biome,
 		TreeLogs, TreeOther
 	);
 
@@ -152,6 +174,38 @@ void cStructGenTrees::GenerateSingleTree(
 
 	ApplyTreeImage(a_ChunkX, a_ChunkZ, a_ChunkDesc, TreeOther, a_OutsideOther);
 	ApplyTreeImage(a_ChunkX, a_ChunkZ, a_ChunkDesc, TreeLogs,  a_OutsideLogs);
+
+	if (!a_ChunkDesc.ShouldGenerateBeeNests())
+	{
+		return;
+	}
+	const auto Base = a_Pos.addedY(1);
+	const auto AbsoluteBase = cChunkDef::RelativeToAbsolute(Base, a_ChunkDesc.GetChunkCoords());
+	const auto Roll = m_Noise.IntNoise3DInt(AbsoluteBase.addedY(31)) / 8 % 1000;
+	if ((Roll >= BeeNestChancePerThousand(Biome)) || (a_ChunkDesc.GetBlockType(Base.x, Base.y, Base.z) != E_BLOCK_LOG))
+	{
+		return;
+	}
+	const auto Wood = a_ChunkDesc.GetBlockMeta(Base.x, Base.y, Base.z);
+	if ((Wood != E_META_LOG_OAK_UP_DOWN) && (Wood != E_META_LOG_BIRCH_UP_DOWN))
+	{
+		return;
+	}
+
+	// Look for a trunk block immediately below the canopy.
+	int LowestLeaf = cChunkDef::Height;
+	for (const auto & Block : TreeOther)
+	{
+		if (Block.m_BlockType == E_BLOCK_LEAVES)
+		{
+			LowestLeaf = std::min(LowestLeaf, Block.m_RelY);
+		}
+	}
+	const auto Trunk = Vector3i(Base.x, std::max(Base.y, LowestLeaf - 1), Base.z);
+	if (LowestLeaf < cChunkDef::Height)
+	{
+		a_ChunkDesc.AddBeeNestTrunk(Trunk);
+	}
 }
 
 

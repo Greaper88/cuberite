@@ -208,6 +208,9 @@ public:
 
 		BatHanging,
 
+		BeeFlags,
+		BeeAngerTicks,
+
 		AgeableIsBaby,
 
 		AbstractHorseFlags,

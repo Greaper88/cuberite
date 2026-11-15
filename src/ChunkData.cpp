@@ -234,6 +234,62 @@ void ChunkBlockData::SetNamedSection(const size_t a_Y, std::vector<cNamedBlockSt
 
 
 
+bool ChunkBlockData::SetNamedBlock(Vector3i a_Position, cNamedBlockState a_State)
+{
+	const auto [Y, Index] = IndicesFromRelPos(a_Position);
+	auto & Section = m_NamedSections[Y];
+	if (Section == nullptr)
+	{
+		Section = std::make_unique<NamedSection>();
+		Section->Indices.fill(MissingNamedState);
+		Section->Remaining = 0;
+	}
+	auto & Current = Section->Indices[Index];
+	auto & Palette = Section->Palette;
+	const auto Found = std::find(Palette.begin(), Palette.end(), a_State);
+	auto Entry = static_cast<UInt16>(std::distance(Palette.begin(), Found));
+	if (Found == Palette.end())
+	{
+		if (Palette.size() < SectionBlockCount)
+		{
+			Palette.push_back(std::move(a_State));
+		}
+		else
+		{
+			// At most 4095 other blocks use this palette. Reuse an unreferenced entry.
+			std::array<bool, SectionBlockCount> Used{};
+			for (size_t Block = 0; Block < SectionBlockCount; ++Block)
+			{
+				const auto Existing = Section->Indices[Block];
+				if ((Block != Index) && (Existing != MissingNamedState))
+				{
+					Used[Existing] = true;
+				}
+			}
+			Entry = static_cast<UInt16>(std::distance(Used.begin(), std::find(Used.begin(), Used.end(), false)));
+			Palette[Entry] = std::move(a_State);
+			if (Entry == Current)
+			{
+				return true;
+			}
+		}
+	}
+	if (Current == Entry)
+	{
+		return false;
+	}
+	if (Current == MissingNamedState)
+	{
+		++Section->Remaining;
+	}
+	Current = Entry;
+	return true;
+}
+
+
+
+
+
 void ChunkBlockData::ClearNamedBlock(const size_t a_Y, const size_t a_Index)
 {
 	auto & Section = m_NamedSections[a_Y];

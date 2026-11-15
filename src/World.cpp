@@ -17,6 +17,7 @@
 #include "BlockInServerPluginInterface.h"
 
 // Serializers
+#include "WorldStorage/BeeNBT.h"
 #include "WorldStorage/ScoreboardSerializer.h"
 
 // Entities (except mobs):
@@ -28,6 +29,7 @@
 #include "Entities/Player.h"
 #include "Entities/TNTEntity.h"
 
+#include "BlockEntities/BeehiveEntity.h"
 #include "BlockEntities/CommandBlockEntity.h"
 #include "BlockEntities/SignEntity.h"
 
@@ -220,6 +222,7 @@ cWorld::cWorld(
 
 	const auto StorageFormat = SelectWorldStorageFormat(m_DataPath);
 	m_UsesPalettedAnvil = StorageFormat.Format == eWorldStorageFormat::PalettedAnvil;
+	m_JavaDataVersion = StorageFormat.DataVersion;
 	m_EngineDataPath = m_UsesPalettedAnvil ? m_DataPath + "/cuberite" : m_DataPath;
 	cFile::CreateFolderRecursive(m_EngineDataPath);
 
@@ -2215,6 +2218,36 @@ void cWorld::SendBlockEntity(int a_BlockX, int a_BlockY, int a_BlockZ, cClientHa
 
 
 
+bool cWorld::SupportsBees() const
+{
+	return m_JavaDataVersion >= JavaBeeDataVersion;
+}
+
+
+
+
+
+bool cWorld::SupportsBeesAt(Vector3i a_Position) const
+{
+	return
+		(cChunkDef::IsValidHeight(a_Position)) &&
+		SupportsBees() &&
+		(m_ChunkMap.GetChunkDataVersion(a_Position) >= JavaBeeDataVersion);
+}
+
+
+
+
+
+bool cWorld::UpdateNamedBlock(Vector3i a_Position, BLOCKTYPE a_ExpectedType, cNamedBlockState a_State)
+{
+	return m_ChunkMap.UpdateNamedBlock(a_Position, a_ExpectedType, std::move(a_State));
+}
+
+
+
+
+
 void cWorld::MarkChunkDirty(int a_ChunkX, int a_ChunkZ)
 {
 	m_ChunkMap.MarkChunkDirty(a_ChunkX, a_ChunkZ);
@@ -2994,6 +3027,10 @@ UInt32 cWorld::SpawnMob(double a_PosX, double a_PosY, double a_PosZ, eMonsterTyp
 UInt32 cWorld::SpawnMobFinalize(std::unique_ptr<cMonster> a_Monster)
 {
 	ASSERT(a_Monster != nullptr);
+	if ((a_Monster->GetMobType() == mtBee) && !SupportsBeesAt(a_Monster->GetPosition().Floor()))
+	{
+		return cEntity::INVALID_ID;
+	}
 
 	// Give the mob  full health.
 	a_Monster->SetHealth(a_Monster->GetMaxHealth());
@@ -3241,6 +3278,7 @@ void cWorld::cChunkGeneratorCallbacks::OnChunkGenerated(cChunkDesc & a_ChunkDesc
 
 	struct SetChunkData Data({ a_ChunkDesc.GetChunkX(), a_ChunkDesc.GetChunkZ() });
 	{
+		Data.DataVersion = m_World->m_JavaDataVersion;
 		Data.BlockData.SetAll(a_ChunkDesc.GetBlockTypes(), BlockMetas);
 
 		std::copy(a_ChunkDesc.GetBiomeMap(), a_ChunkDesc.GetBiomeMap() + std::size(a_ChunkDesc.GetBiomeMap()), Data.BiomeMap);
@@ -3288,6 +3326,7 @@ bool cWorld::cChunkGeneratorCallbacks::HasChunkAnyClients(cChunkCoords a_Coords)
 
 void cWorld::cChunkGeneratorCallbacks::CallHookChunkGenerating(cChunkDesc & a_ChunkDesc)
 {
+	a_ChunkDesc.SetGenerateBeeNests(m_World->SupportsBees() && (m_World->GetDimension() == dimOverworld));
 	cPluginManager::Get()->CallHookChunkGenerating(
 		*m_World, a_ChunkDesc.GetChunkX(), a_ChunkDesc.GetChunkZ(), &a_ChunkDesc
 	);
@@ -3297,8 +3336,59 @@ void cWorld::cChunkGeneratorCallbacks::CallHookChunkGenerating(cChunkDesc & a_Ch
 
 
 
+static void PlaceGeneratedBeeNests(cChunkDesc & a_ChunkDesc, int a_Seed)
+{
+	constexpr std::array<eBlockFace, 3> Offsets{ BLOCK_FACE_ZP, BLOCK_FACE_XM, BLOCK_FACE_XP };
+	const cNoise Noise(a_Seed);
+	for (const auto & Trunk : a_ChunkDesc.GetBeeNestTrunks())
+	{
+		if (a_ChunkDesc.GetBlockType(Trunk.x, Trunk.y, Trunk.z) != E_BLOCK_LOG)
+		{
+			continue;
+		}
+		const auto AbsoluteTrunk = cChunkDef::RelativeToAbsolute(Trunk, a_ChunkDesc.GetChunkCoords());
+		const auto Roll = Noise.IntNoise3DInt(AbsoluteTrunk.addedY(53)) / 8;
+		for (size_t Index = 0; Index < Offsets.size(); ++Index)
+		{
+			const auto Nest = AddFaceDirection(Trunk, Offsets[(Index + static_cast<size_t>(Roll)) % Offsets.size()]);
+			const auto Entrance = Nest.addedZ(1);
+			if (
+				!cChunkDef::IsValidRelPos(Nest) || !cChunkDef::IsValidRelPos(Entrance) ||
+				(a_ChunkDesc.GetBlockType(Nest.x, Nest.y, Nest.z) != E_BLOCK_AIR) ||
+				(a_ChunkDesc.GetBlockType(Entrance.x, Entrance.y, Entrance.z) != E_BLOCK_AIR)
+			)
+			{
+				continue;
+			}
+
+			const auto Home = cChunkDef::RelativeToAbsolute(Nest, a_ChunkDesc.GetChunkCoords());
+			std::vector<cBeehiveEntity::Occupant> Occupants;
+			const auto Count = 2 + Roll % 2;
+			for (int BeeIndex = 0; BeeIndex < Count; ++BeeIndex)
+			{
+				cBee Bee;
+				Bee.SetHivePos(Home);
+				Occupants.push_back({ BeeNBT::SaveOccupant(Bee), Noise.IntNoise3DInt(Home.addedY(BeeIndex)) % 599, 600 });
+			}
+			a_ChunkDesc.SetBlockTypeMeta(Nest.x, Nest.y, Nest.z, E_BLOCK_BEEHIVE, E_META_BEEHIVE_NEST | E_META_BEEHIVE_FACING_ZP);
+			auto & BeeNest = static_cast<cBeehiveEntity &>(*a_ChunkDesc.GetBlockEntity(Nest.x, Nest.y, Nest.z));
+			BeeNest.SetOccupants(std::move(Occupants));
+			a_ChunkDesc.SetHeight(Nest.x, Nest.z, std::max(a_ChunkDesc.GetHeight(Nest.x, Nest.z), static_cast<HEIGHTTYPE>(Nest.y)));
+			break;
+		}
+	}
+}
+
+
+
+
+
 void cWorld::cChunkGeneratorCallbacks::CallHookChunkGenerated (cChunkDesc & a_ChunkDesc)
 {
+	if (!a_ChunkDesc.GetBeeNestTrunks().empty())
+	{
+		PlaceGeneratedBeeNests(a_ChunkDesc, m_World->GetSeed());
+	}
 	cPluginManager::Get()->CallHookChunkGenerated(
 		*m_World, a_ChunkDesc.GetChunkX(), a_ChunkDesc.GetChunkZ(), &a_ChunkDesc
 	);

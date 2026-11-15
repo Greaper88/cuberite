@@ -155,6 +155,7 @@ bool IsBlockMaterialWood(BLOCKTYPE a_BlockType)
 		case E_BLOCK_BIRCH_FENCE:
 		case E_BLOCK_BIRCH_FENCE_GATE:
 		case E_BLOCK_BIRCH_WOOD_STAIRS:
+		case E_BLOCK_BEEHIVE:
 		case E_BLOCK_BOOKCASE:
 		case E_BLOCK_CHEST:
 		case E_BLOCK_CRAFTING_TABLE:
@@ -615,6 +616,7 @@ bool cBlockInfo::FullyOccupiesVoxel(const BLOCKTYPE Block)
 		case E_BLOCK_BLOCK_OF_REDSTONE:
 		case E_BLOCK_BLUE_GLAZED_TERRACOTTA:
 		case E_BLOCK_BONE_BLOCK:
+		case E_BLOCK_BEEHIVE:
 		case E_BLOCK_BOOKCASE:
 		case E_BLOCK_BRICK:
 		case E_BLOCK_BROWN_GLAZED_TERRACOTTA:
@@ -1227,6 +1229,7 @@ float cBlockInfo::GetHardness(const BLOCKTYPE Block)
 		case E_BLOCK_CARROTS:                       return 0.0f;
 		case E_BLOCK_CAULDRON:                      return 2.0f;
 		case E_BLOCK_CHAIN_COMMAND_BLOCK:           return INFINITY;
+		case E_BLOCK_BEEHIVE:                       return 0.6f;
 		case E_BLOCK_CHEST:                         return 2.5f;
 		case E_BLOCK_CHORUS_FLOWER:                 return 0.4f;
 		case E_BLOCK_CHORUS_PLANT:                  return 0.4f;

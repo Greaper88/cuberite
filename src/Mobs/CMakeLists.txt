@@ -3,6 +3,7 @@ target_sources(
 
 	AggressiveMonster.cpp
 	Bat.cpp
+	Bee.cpp
 	Blaze.cpp
 	CaveSpider.cpp
 	Chicken.cpp
@@ -44,6 +45,7 @@ target_sources(
 
 	AggressiveMonster.h
 	Bat.h
+	Bee.h
 	Blaze.h
 	CaveSpider.h
 	Chicken.h

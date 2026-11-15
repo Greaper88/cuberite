@@ -8,6 +8,7 @@
 
 #include "Chunk.h"
 #include "BlockInfo.h"
+#include "BlockEntities/BeehiveEntity.h"
 #include "World.h"
 #include "ClientHandle.h"
 #include "Server.h"
@@ -138,12 +139,36 @@ void cChunk::BroadcastPendingChanges(void)
 			}
 		}
 	}
-	else
+	else if (!m_LoadedByClient.empty())
 	{
-		// Send block and block entity changes:
+		// Named states require individual updates carrying their exact properties.
+		sSetBlockVector Numeric;
+		Numeric.reserve(PendingBlocksCount);
+		std::map<size_t, Vector3i> Named;
+		for (const auto & Change : m_PendingSendBlocks)
+		{
+			const auto Pos = Change.GetRelativePos();
+			if (m_BlockData.GetNamedBlock(Pos) != nullptr)
+			{
+				Named.try_emplace(cChunkDef::MakeIndex(Pos), Pos);
+			}
+			else
+			{
+				Numeric.push_back(Change);
+			}
+		}
 		for (const auto ClientHandle : m_LoadedByClient)
 		{
-			ClientHandle->SendBlockChanges(m_PosX, m_PosZ, m_PendingSendBlocks);
+			if (!Numeric.empty())
+			{
+				ClientHandle->SendBlockChanges(m_PosX, m_PosZ, Numeric);
+			}
+			for (const auto & [Index, Pos] : Named)
+			{
+				ClientHandle->SendBlockChangeNamed(
+					PositionToWorldPosition(Pos.x, Pos.y, Pos.z), GetBlock(Pos), GetMeta(Pos), m_BlockData.GetNamedBlock(Pos)
+				);
+			}
 
 			for (const auto BlockEntity : m_PendingSendBlockEntities)
 			{
@@ -337,6 +362,7 @@ void cChunk::SetAllData(SetChunkData && a_SetChunkData)
 	std::copy_n(a_SetChunkData.HeightMap, std::size(a_SetChunkData.HeightMap), m_HeightMap);
 	std::copy_n(a_SetChunkData.BiomeMap, std::size(a_SetChunkData.BiomeMap), m_BiomeMap);
 
+	m_DataVersion = a_SetChunkData.DataVersion;
 	m_BlockData = std::move(a_SetChunkData.BlockData);
 	m_LightData = std::move(a_SetChunkData.LightData);
 	m_IsLightValid = a_SetChunkData.IsLightValid;
@@ -516,6 +542,10 @@ void cChunk::WriteBlockArea(cBlockArea & a_Area, int a_MinBlockX, int a_MinBlock
 		for (const auto & keyPair: a_Area.GetBlockEntities())
 		{
 			auto & be = keyPair.second;
+			if ((be->GetBlockType() == E_BLOCK_BEEHIVE) && (m_DataVersion < JavaBeeDataVersion))
+			{
+				continue;
+			}
 			auto posX = be->GetPosX() + a_MinBlockX;
 			auto posY = be->GetPosY() + a_MinBlockY;
 			auto posZ = be->GetPosZ() + a_MinBlockZ;
@@ -1284,6 +1314,24 @@ void cChunk::WakeUpSimulators(void)
 
 void cChunk::SetBlock(Vector3i a_RelPos, BLOCKTYPE a_BlockType, NIBBLETYPE a_BlockMeta)
 {
+	if (a_BlockType == E_BLOCK_BEEHIVE)
+	{
+		if (m_DataVersion < JavaBeeDataVersion)
+		{
+			return;
+		}
+
+		if ((GetBlock(a_RelPos) == E_BLOCK_BEEHIVE) && (GetBlockEntityRel(a_RelPos) != nullptr))
+		{
+			// Retain the current block entity when changing the facing or variant.
+			if (GetMeta(a_RelPos) != a_BlockMeta)
+			{
+				SetMeta(a_RelPos, a_BlockMeta);
+			}
+			return;
+		}
+	}
+
 	FastSetBlock(a_RelPos, a_BlockType, a_BlockMeta);
 
 	// Queue a check of this block's neighbors:
@@ -1319,6 +1367,11 @@ void cChunk::FastSetBlock(int a_RelX, int a_RelY, int a_RelZ, BLOCKTYPE a_BlockT
 {
 	ASSERT(cChunkDef::IsValidRelPos({ a_RelX, a_RelY, a_RelZ }));
 	ASSERT(IsValid());
+
+	if ((a_BlockType == E_BLOCK_BEEHIVE) && (m_DataVersion < JavaBeeDataVersion))
+	{
+		return;
+	}
 
 	const BLOCKTYPE OldBlockType = GetBlock(a_RelX, a_RelY, a_RelZ);
 	const BLOCKTYPE OldBlockMeta = m_BlockData.GetMeta({ a_RelX, a_RelY, a_RelZ });
@@ -1386,6 +1439,45 @@ void cChunk::FastSetBlock(int a_RelX, int a_RelY, int a_RelZ, BLOCKTYPE a_BlockT
 			}  // for y - column in m_BlockData
 		}
 	}
+}
+
+
+
+
+
+void cChunk::SetMeta(Vector3i a_RelPos, NIBBLETYPE a_Meta)
+{
+	const auto Block = GetBlock(a_RelPos);
+	m_BlockData.SetMeta(a_RelPos, a_Meta);
+	MarkDirty();
+	m_PendingSendBlocks.emplace_back(m_PosX, m_PosZ, a_RelPos.x, a_RelPos.y, a_RelPos.z, Block, a_Meta);
+	if (Block == E_BLOCK_BEEHIVE)
+	{
+		if (auto * const Hive = static_cast<cBeehiveEntity *>(GetBlockEntityRel(a_RelPos)); Hive != nullptr)
+		{
+			Hive->SetBlockMeta(a_Meta);
+		}
+	}
+}
+
+
+
+
+
+bool cChunk::UpdateNamedBlock(Vector3i a_RelPos, BLOCKTYPE a_ExpectedType, cNamedBlockState a_State)
+{
+	if (GetBlock(a_RelPos) != a_ExpectedType)
+	{
+		return false;
+	}
+	if (m_BlockData.SetNamedBlock(a_RelPos, std::move(a_State)))
+	{
+		MarkDirty();
+		m_PendingSendBlocks.emplace_back(
+			m_PosX, m_PosZ, a_RelPos.x, a_RelPos.y, a_RelPos.z, a_ExpectedType, GetMeta(a_RelPos)
+		);
+	}
+	return true;
 }
 
 

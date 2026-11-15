@@ -18,6 +18,7 @@ struct SetChunkData
 	}
 
 	cChunkCoords Chunk;
+	int DataVersion = 0;
 
 	ChunkBlockData BlockData;
 	ChunkLightData LightData;

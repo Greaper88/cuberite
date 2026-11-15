@@ -239,6 +239,28 @@ static void TestNamedStates()
 	ChunkBlockData::SectionMetaType MetaSection{};
 	Copy.SetSection(BlockSection, MetaSection, SectionY);
 	TEST_EQUAL(Copy.HasNamedSection(SectionY), false);
+
+	// A new runtime property can attach to a sparse section and be cleared by a numeric edit.
+	const cNamedBlockState FullHive{"minecraft:beehive", {{"facing", "north"}, {"honey_level", "5"}}};
+	TEST_EQUAL(Copy.SetNamedBlock(Stairs, FullHive), true);
+	TEST_EQUAL(Copy.SetNamedBlock(Stairs, FullHive), false);
+	TEST_EQUAL(Copy.GetBlock(Stairs), E_BLOCK_DIRT);
+	TEST_EQUAL(Copy.GetNamedBlock(Neighbor), nullptr);
+	Copy.SetBlock(Stairs, E_BLOCK_AIR);
+	TEST_EQUAL(Copy.HasNamedSection(SectionY), false);
+
+	// A full palette must reuse the cell's previous slot without changing its neighbors.
+	std::vector<cNamedBlockState> Palette;
+	for (size_t Index = 0; Index < Indices.size(); ++Index)
+	{
+		Indices[Index] = static_cast<UInt16>(Index);
+		Palette.push_back({"minecraft:oak_stairs", {{"test", std::to_string(Index)}}});
+	}
+	const auto NeighborState = Palette[cChunkDef::MakeIndex(4, 1, 4)];
+	Copy.SetNamedSection(SectionY, std::move(Palette), Indices);
+	TEST_EQUAL(Copy.SetNamedBlock(Stairs, FullHive), true);
+	TEST_EQUAL(*Copy.GetNamedBlock(Stairs), FullHive);
+	TEST_EQUAL(*Copy.GetNamedBlock(Neighbor), NeighborState);
 }
 
 

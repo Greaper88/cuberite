@@ -10,6 +10,7 @@ Implements the 1.13 protocol classes:
 
 #include "Globals.h"
 #include "Protocol_1_13.h"
+#include "LegacyBlockFallbacks.h"
 #include "Palettes/NamedBlockPalette.h"
 
 #include "../Entities/Boat.h"
@@ -110,6 +111,25 @@ void cProtocol_1_13::SendParticleEffect(const AString & a_ParticleName, Vector3f
 void cProtocol_1_13::SendScoreboardObjective(const AString & a_Name, const AString & a_DisplayName, Byte a_Mode)
 {
 	// TODO
+}
+
+
+
+
+
+void cProtocol_1_13::SendSoundParticleEffect(const EffectID a_EffectID, Vector3i a_Origin, int a_Data)
+{
+	ASSERT(m_State == 3);
+
+	cPacketizer Pkt(*this, pktSoundParticleEffect);
+	Pkt.WriteBEInt32(static_cast<Int32>(a_EffectID));
+	Pkt.WriteXYZPosition64(a_Origin);
+	if (a_EffectID == EffectID::PARTICLE_BLOCK_BREAK)
+	{
+		a_Data = static_cast<Int32>(GetProtocolBlockType(static_cast<BLOCKTYPE>(a_Data & 0xfff), static_cast<NIBBLETYPE>((a_Data >> 12) & 15)));
+	}
+	Pkt.WriteBEInt32(a_Data);
+	Pkt.WriteBool(false);
 }
 
 
@@ -460,7 +480,8 @@ UInt32 cProtocol_1_13::GetPacketID(ePacketType a_PacketType) const
 
 UInt32 cProtocol_1_13::GetProtocolBlockType(BLOCKTYPE a_BlockType, NIBBLETYPE a_Meta) const
 {
-	return Palette_1_13::From(PaletteUpgrade::FromBlock(a_BlockType, a_Meta));
+	const auto State = LegacyBlockFallbacks::ForBlock(GetProtocolVersion(), a_BlockType, a_Meta);
+	return Palette_1_13::From(PaletteUpgrade::FromBlock(State.Type, State.Meta));
 }
 
 
@@ -482,7 +503,8 @@ signed char cProtocol_1_13::GetProtocolEntityStatus(const EntityAnimation a_Anim
 
 UInt32 cProtocol_1_13::GetProtocolItemType(short a_ItemID, short a_ItemDamage) const
 {
-	return Palette_1_13::From(PaletteUpgrade::FromItem(a_ItemID, a_ItemDamage));
+	const auto [Type, Damage] = LegacyBlockFallbacks::ForItem(GetProtocolVersion(), a_ItemID, a_ItemDamage);
+	return Palette_1_13::From(PaletteUpgrade::FromItem(Type, Damage));
 }
 
 
@@ -495,6 +517,7 @@ UInt32 cProtocol_1_13::GetProtocolMobType(eMonsterType a_MobType) const
 	{
 		// Map invalid type to Giant for easy debugging (if this ever spawns, something has gone very wrong)
 		case mtInvalidType:           return 27;
+		case mtBee:
 		case mtBat:                   return 3;
 		case mtCat:                   return 48;
 		case mtBlaze:                 return 4;
@@ -956,8 +979,26 @@ void cProtocol_1_13::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 	a_Pkt.WriteBEInt16(static_cast<Int16>(GetProtocolItemType(a_Item.m_ItemType, a_Item.m_ItemDamage)));
 	a_Pkt.WriteBEInt8(a_Item.m_ItemCount);
 
-	// TODO: NBT
-	a_Pkt.WriteBEInt8(0);
+	WriteFallbackItemIdentity(a_Pkt, a_Item);
+}
+
+
+
+
+
+void cProtocol_1_13::WriteFallbackItemIdentity(cPacketizer & a_Pkt, const cItem & a_Item) const
+{
+	const auto Alternate = LegacyBlockFallbacks::ForItem(GetProtocolVersion(), a_Item.m_ItemType, a_Item.m_ItemDamage);
+	if (Alternate.first == a_Item.m_ItemType)
+	{
+		a_Pkt.WriteBEInt8(0);
+		return;
+	}
+
+	cFastNBTWriter Writer;
+	LegacyBlockFallbacks::WriteItemIdentity(Writer, a_Item);
+	Writer.Finish();
+	a_Pkt.WriteBuf(Writer.GetResult());
 }
 
 
@@ -1354,6 +1395,7 @@ void cProtocol_1_13::WriteMobMetadata(cPacketizer & a_Pkt, const cMonster & a_Mo
 		}
 
 		case mtEndermite:
+		case mtBee:  // Older clients display a bat and use its default flags.
 		case mtGiant:
 		case mtSilverfish:
 		case mtSquid:
@@ -1475,7 +1517,8 @@ std::pair<short, short> cProtocol_1_13_1::GetItemFromProtocolID(UInt32 a_Protoco
 
 UInt32 cProtocol_1_13_1::GetProtocolBlockType(BLOCKTYPE a_BlockType, NIBBLETYPE a_Meta) const
 {
-	return Palette_1_13_1::From(PaletteUpgrade::FromBlock(a_BlockType, a_Meta));
+	const auto State = LegacyBlockFallbacks::ForBlock(GetProtocolVersion(), a_BlockType, a_Meta);
+	return Palette_1_13_1::From(PaletteUpgrade::FromBlock(State.Type, State.Meta));
 }
 
 
@@ -1484,7 +1527,8 @@ UInt32 cProtocol_1_13_1::GetProtocolBlockType(BLOCKTYPE a_BlockType, NIBBLETYPE 
 
 UInt32 cProtocol_1_13_1::GetProtocolItemType(short a_ItemID, short a_ItemDamage) const
 {
-	return Palette_1_13_1::From(PaletteUpgrade::FromItem(a_ItemID, a_ItemDamage));
+	const auto [Type, Damage] = LegacyBlockFallbacks::ForItem(GetProtocolVersion(), a_ItemID, a_ItemDamage);
+	return Palette_1_13_1::From(PaletteUpgrade::FromItem(Type, Damage));
 }
 
 
@@ -1581,6 +1625,5 @@ void cProtocol_1_13_2::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) cons
 	a_Pkt.WriteVarInt32(GetProtocolItemType(a_Item.m_ItemType, a_Item.m_ItemDamage));
 	a_Pkt.WriteBEInt8(a_Item.m_ItemCount);
 
-	// TODO: NBT
-	a_Pkt.WriteBEInt8(0);
+	WriteFallbackItemIdentity(a_Pkt, a_Item);
 }

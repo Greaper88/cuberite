@@ -1,5 +1,7 @@
 #include "Globals.h"
 #include "WSSPalettedAnvil.h"
+#include "BeeNBT.h"
+#include "../Mobs/Bee.h"
 #include "PalettedAnvil.h"
 #include "PalettedItemNBT.h"
 #include "PalettedStateBlockEntities.h"
@@ -502,6 +504,7 @@ bool cWSSPalettedAnvil::LoadChunkFromData(const cChunkCoords & a_Chunk, Contiguo
 		}
 
 		struct SetChunkData Data(a_Chunk);
+		Data.DataVersion = Version;
 		for (size_t Y = 0; Y < cChunkDef::NumSections; ++Y)
 		{
 			const auto Section = Chunk.GetSection(Y);
@@ -548,7 +551,7 @@ bool cWSSPalettedAnvil::LoadChunkFromData(const cChunkCoords & a_Chunk, Contiguo
 			for (size_t Index = 0; Index < Blocks->size(); ++Index)
 			{
 				const auto Block = (*Blocks)[Index];
-				if ((Block != E_BLOCK_NOTE_BLOCK) && (Block != E_BLOCK_FLOWER_POT))
+				if ((Block != E_BLOCK_NOTE_BLOCK) && (Block != E_BLOCK_FLOWER_POT) && (Block != E_BLOCK_BEEHIVE))
 				{
 					continue;
 				}
@@ -695,7 +698,7 @@ void cWSSPalettedAnvil::LoadNativeObjects(const cParsedNBT & a_NBT, struct SetCh
 								auto Data = std::make_unique<cPalettedEntityData>();
 								Data->Original = CopyEntityRecord(a_NBT, Tag);
 								Data->Baseline = std::move(Baseline);
-									Entity->SetPalettedStorageData(std::move(Data));
+								Entity->SetPalettedStorageData(std::move(Data));
 								a_Data.BlockEntities.emplace(Index, std::move(Entity));
 								continue;
 							}
@@ -795,4 +798,93 @@ std::optional<Compression::Result> cWSSPalettedAnvil::SaveChunkToData(const cChu
 		&Entities
 	);
 	return m_Compressor.CompressZLib(Bytes);
+}
+
+
+
+
+
+ContiguousByteBuffer BeeNBT::SaveOccupant(cBee & a_Bee)
+{
+	const auto Live = BuildEntityRecord(
+		NBTChunkSerializer::SerializeEntity(a_Bee, CurrentJavaWorldDataVersion), a_Bee.GetPalettedStorageData(), true
+	);
+	const cParsedNBT Entity(Live);
+	cFastNBTWriter Writer;
+	for (int Field = Entity.GetFirstChild(0); Field >= 0; Field = Entity.GetNextSibling(Field))
+	{
+		const auto Name = Entity.GetName(Field);
+		if ((Name != "Passengers") && (Name != "Leash") && (Name != "Leashed"))
+		{
+			Writer.CopyTag(Entity, Field);
+		}
+	}
+	Writer.Finish();
+	return ContiguousByteBuffer(Writer.GetResult());
+}
+
+
+
+
+
+std::unique_ptr<cBee> BeeNBT::LoadOccupant(ContiguousByteBufferView a_Data, Vector3d a_Position)
+{
+	const cParsedNBT Record(a_Data);
+	if (!Record.IsValid() || (Record.GetType(0) != TAG_Compound))
+	{
+		return nullptr;
+	}
+	const auto ID = Record.FindChildByName(0, "id");
+	if ((ID < 0) || (Record.GetType(ID) != TAG_String) || (Record.GetStringView(ID) != "minecraft:bee"))
+	{
+		return nullptr;
+	}
+
+	auto Bee = std::make_unique<cBee>();
+	ReadFields(*Bee, Record, 0);
+	Bee->SetPosition(a_Position);
+	const auto Health = Record.FindChildByName(0, "Health");
+	if ((Health >= 0) && (Record.GetType(Health) == TAG_Float) && std::isfinite(Record.GetFloat(Health)))
+	{
+		Bee->SetHealth(std::clamp(Record.GetFloat(Health), 0.0f, Bee->GetMaxHealth()));
+	}
+	const auto Name = Record.FindChildByName(0, "CustomName");
+	if ((Name >= 0) && (Record.GetType(Name) == TAG_String))
+	{
+		Bee->SetCustomName(cWSSAnvil::DecodeSignLine(Record.GetString(Name)));
+	}
+	const auto Visible = Record.FindChildByName(0, "CustomNameVisible");
+	if ((Visible >= 0) && (Record.GetType(Visible) == TAG_Byte))
+	{
+		Bee->SetCustomNameAlwaysVisible(Record.GetByte(Visible) != 0);
+	}
+
+	auto Data = std::make_unique<cPalettedEntityData>();
+	Data->OriginalVersion = CurrentJavaWorldDataVersion;
+	Data->Baseline = NBTChunkSerializer::SerializeEntity(*Bee, Data->OriginalVersion);
+	SetEntityUUID(*Data, &Record, 0);
+
+	// Occupants may have no position, or may still carry the flight data from before entering.
+	// A released entity always needs the position and movement from its new location.
+	const cParsedNBT Baseline(Data->Baseline);
+	cFastNBTWriter Writer;
+	for (int Field = Record.GetFirstChild(0); Field >= 0; Field = Record.GetNextSibling(Field))
+	{
+		const auto FieldName = Record.GetName(Field);
+		if ((FieldName != "Pos") && (FieldName != "Motion") && (FieldName != "Rotation"))
+		{
+			Writer.CopyTag(Record, Field);
+		}
+	}
+	for (const auto FieldName : {"Pos", "Motion", "Rotation"})
+	{
+		const auto Field = Baseline.FindChildByName(0, FieldName);
+		ASSERT(Field >= 0);
+		Writer.CopyTag(Baseline, Field);
+	}
+	Writer.Finish();
+	Data->Original = ContiguousByteBuffer(Writer.GetResult());
+
+	Bee->SetPalettedStorageData(std::move(Data));
+	return Bee;
 }

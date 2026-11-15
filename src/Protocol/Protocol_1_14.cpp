@@ -8,6 +8,7 @@ Implements the 1.14 protocol classes:
 
 #include "Globals.h"
 #include "Protocol_1_14.h"
+#include "LegacyBlockFallbacks.h"
 #include "Palettes/NamedBlockPalette.h"
 #include "Packetizer.h"
 #include "JsonUtils.h"
@@ -247,11 +248,13 @@ void cProtocol_1_14::SendSoundParticleEffect(const EffectID a_EffectID, Vector3i
 {
 	ASSERT(m_State == 3);  // In game mode?
 
-	// Note: Particles from block break missing
-
 	cPacketizer Pkt(*this, pktSoundParticleEffect);
-	Pkt.WriteBEInt32(static_cast<int>(a_EffectID));
-	Pkt.WriteXYZPosition64(a_Origin);
+	Pkt.WriteBEInt32(static_cast<Int32>(a_EffectID));
+	Pkt.WriteXZYPosition64(a_Origin);
+	if (a_EffectID == EffectID::PARTICLE_BLOCK_BREAK)
+	{
+		a_Data = static_cast<Int32>(GetProtocolBlockType(static_cast<BLOCKTYPE>(a_Data & 0xfff), static_cast<NIBBLETYPE>((a_Data >> 12) & 15)));
+	}
 	Pkt.WriteBEInt32(a_Data);
 	Pkt.WriteBool(false);
 }
@@ -660,7 +663,8 @@ std::pair<short, short> cProtocol_1_14::GetItemFromProtocolID(UInt32 a_ProtocolI
 
 UInt32 cProtocol_1_14::GetProtocolBlockType(BLOCKTYPE a_BlockType, NIBBLETYPE a_Meta) const
 {
-	return Palette_1_14::From(PaletteUpgrade::FromBlock(a_BlockType, a_Meta));
+	const auto State = LegacyBlockFallbacks::ForBlock(GetProtocolVersion(), a_BlockType, a_Meta);
+	return Palette_1_14::From(PaletteUpgrade::FromBlock(State.Type, State.Meta));
 }
 
 
@@ -746,7 +750,8 @@ UInt8 cProtocol_1_14::GetProtocolEntityType(const cEntity & a_Entity) const
 
 UInt32 cProtocol_1_14::GetProtocolItemType(short a_ItemID, short a_ItemDamage) const
 {
-	return Palette_1_14::From(PaletteUpgrade::FromItem(a_ItemID, a_ItemDamage));
+	const auto [Type, Damage] = LegacyBlockFallbacks::ForItem(GetProtocolVersion(), a_ItemID, a_ItemDamage);
+	return Palette_1_14::From(PaletteUpgrade::FromItem(Type, Damage));
 }
 
 
@@ -759,6 +764,7 @@ UInt32 cProtocol_1_14::GetProtocolMobType(eMonsterType a_MobType) const
 	{
 		// Map invalid type to Giant for easy debugging (if this ever spawns, something has gone very wrong)
 		case mtInvalidType:           return 29;
+		case mtBee:
 		case mtBat:                   return 3;
 		case mtBlaze:                 return 4;
 		case mtCat:                   return 6;
@@ -1665,6 +1671,7 @@ void cProtocol_1_14::WriteMobMetadata(cPacketizer & a_Pkt, const cMonster & a_Mo
 		}
 
 		case mtEndermite:
+		case mtBee:  // Older clients display a bat and use its default flags.
 		case mtGiant:
 		case mtSilverfish:
 		case mtSquid:

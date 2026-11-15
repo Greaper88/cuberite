@@ -118,6 +118,10 @@ namespace
 LegacyBlockFallbacks::cState LegacyBlockFallbacks::ForBlock(cProtocol::Version a_Version, BLOCKTYPE a_Type, NIBBLETYPE a_Meta)
 {
 	a_Meta &= 0x0f;
+	if ((a_Type == E_BLOCK_BEEHIVE) && (a_Version < Version::v1_15_2))
+	{
+		return ((a_Meta & E_META_BEEHIVE_NEST) != 0) ? State{ E_BLOCK_LOG, E_META_LOG_OAK_UP_DOWN } : State{ E_BLOCK_PLANKS, E_META_PLANKS_OAK };
+	}
 	if (a_Version >= Version::v1_12)
 	{
 		return { a_Type, a_Meta };
@@ -154,7 +158,7 @@ Int32 LegacyBlockFallbacks::ForEffect(cProtocol::Version a_Version, Int32 a_Data
 {
 	// Effects use 12 low bits for the block ID and the following 4 bits for metadata.
 	const auto Type = a_Data & 0xfff;
-	if ((a_Version >= Version::v1_12) || (Type > E_BLOCK_STRUCTURE_BLOCK) || (a_Data < 0) || (a_Data > 0xffff))
+	if ((Type > E_BLOCK_STRUCTURE_BLOCK) || (a_Data < 0) || (a_Data > 0xffff))
 	{
 		return a_Data;
 	}
@@ -169,6 +173,17 @@ Int32 LegacyBlockFallbacks::ForEffect(cProtocol::Version a_Version, Int32 a_Data
 std::pair<short, short> LegacyBlockFallbacks::ForItem(cProtocol::Version a_Version, short a_Type, short a_Damage)
 {
 	const std::pair<short, short> Native{ a_Type, a_Damage };
+	if (a_Version < Version::v1_15_2)
+	{
+		switch (a_Type)
+		{
+			case E_BLOCK_BEEHIVE:       return { E_BLOCK_PLANKS, E_META_PLANKS_OAK };
+			case E_ITEM_BEE_NEST:       return { E_BLOCK_LOG, E_META_LOG_OAK_UP_DOWN };
+			case E_ITEM_BEE_SPAWN_EGG:  return { E_ITEM_EGG, 0 };
+			case E_ITEM_HONEY_BOTTLE:   return { E_ITEM_GLASS_BOTTLE, 0 };
+			case E_ITEM_HONEYCOMB:      return { E_ITEM_GOLD_NUGGET, 0 };
+		}
+	}
 	if ((a_Type < E_BLOCK_END_ROD) || (a_Type > E_BLOCK_STRUCTURE_BLOCK) || (a_Version >= Version::v1_12))
 	{
 		return Native;
@@ -217,7 +232,7 @@ void LegacyBlockFallbacks::WriteItemIdentity(cFastNBTWriter & a_Writer, const cI
 
 void LegacyBlockFallbacks::RestoreItemIdentity(cProtocol::Version a_Version, cItem & a_Item, const cParsedNBT & a_Nbt)
 {
-	if ((a_Version >= Version::v1_12) || a_Item.IsEmpty())
+	if ((a_Version >= Version::v1_15_2) || a_Item.IsEmpty())
 	{
 		return;
 	}

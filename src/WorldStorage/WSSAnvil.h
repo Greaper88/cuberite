@@ -30,6 +30,11 @@ class cWSSAnvil:
 
 public:
 
+	/** Decodes the text contained within a sign.
+	Older versions used direct string representation, newer versions use JSON-formatted string.
+	This function extracts the text from either version. */
+	static AString DecodeSignLine(const AString & a_Line);
+
 	cWSSAnvil(cWorld * a_World, int a_CompressionFactor, const cWorldStorageFormat & a_Format);
 	virtual ~cWSSAnvil() override;
 
@@ -148,11 +153,6 @@ protected:
 	ItemGrid begins at the specified slot offset
 	Slots outside the ItemGrid range are ignored */
 	void LoadItemGridFromNBT(cItemGrid & a_ItemGrid, const cParsedNBT & a_NBT, int a_ItemsTagIdx, int s_SlotOffset = 0);
-
-	/** Decodes the text contained within a sign.
-	Older versions used direct string representation, newer versions use JSON-formatted string.
-	This function extracts the text from either version. */
-	AString DecodeSignLine(const AString & a_Line);
 
 	/** Returns true iff the "id" child tag inside the specified tag equals (case-sensitive) any of the specified expected types.
 	Logs a warning to the console on mismatch.

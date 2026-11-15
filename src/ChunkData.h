@@ -109,6 +109,9 @@ public:
 	All indices are zero-based offsets into a_Palette. */
 	void SetNamedSection(size_t a_Y, std::vector<cNamedBlockState> a_Palette, const NamedIndices & a_Indices);
 
+	/** Updates one exact named state while keeping its numeric projection. Returns true if changed. */
+	bool SetNamedBlock(Vector3i a_Position, cNamedBlockState a_State);
+
 	/** Changing the numeric block or metadata removes any previously attached named state. */
 	void SetBlock(Vector3i a_Position, BLOCKTYPE a_Block);
 	void SetMeta(Vector3i a_Position, NIBBLETYPE a_Meta);

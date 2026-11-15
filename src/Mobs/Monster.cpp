@@ -39,6 +39,7 @@ static const struct
 } g_MobTypeNames[] =
 {
 	{mtBat,            "bat",            "Bat",            "bat"},
+	{mtBee,            "bee",            "Bee",            "bee"},
 	{mtBlaze,          "blaze",          "Blaze",          "blaze"},
 	{mtCaveSpider,     "cavespider",     "CaveSpider",     "cave_spider"},
 	{mtChicken,        "chicken",        "Chicken",        "chicken"},
@@ -1116,6 +1117,7 @@ cMonster::eFamily cMonster::FamilyFromType(eMonsterType a_Type)
 	switch (a_Type)
 	{
 		case mtBat:             return mfAmbient;
+		case mtBee:             return mfPassive;
 		case mtBlaze:           return mfHostile;
 		case mtCat:             return mfPassive;
 		case mtCaveSpider:      return mfHostile;
@@ -1296,6 +1298,7 @@ std::unique_ptr<cMonster> cMonster::NewMonsterFromType(eMonsterType a_MobType)
 			return std::make_unique<cZombieVillager>(cVillager::GetRandomProfession());
 		}
 		case mtBat:            return std::make_unique<cBat>();
+		case mtBee:            return std::make_unique<cBee>();
 		case mtBlaze:          return std::make_unique<cBlaze>();
 		case mtCaveSpider:     return std::make_unique<cCaveSpider>();
 		case mtChicken:        return std::make_unique<cChicken>();

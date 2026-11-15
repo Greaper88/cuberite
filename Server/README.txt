@@ -81,6 +81,13 @@ with unsupported inventory data, are preserved on disk. Unsupported block
 entities are read-only in play. Cuberite keeps its maps, scoreboard and
 statistics in a separate cuberite directory inside paletted worlds.
 
+Java 1.15 through 1.15.2 chunks support bees, bee nests, and beehives.
+Newly generated Overworld trees can have occupied bee nests. Bees visit
+flowers and bring nectar back to their homes. Harvest full nests or hives
+with glass bottles or shears. Honey levels and occupants survive restarts.
+Older clients see bats, wood blocks, and substitute items. Older chunk
+formats keep their original data version and cannot store live bee homes.
+
 Roadmap items include native Bedrock connections over NetherNet, Bedrock
 .mcworld compatibility, and datapack support. A Lua plugin is a possible
 way to implement a subset of datapack features.
@@ -88,6 +95,7 @@ way to implement a subset of datapack features.
 AI assistance disclosure
 
 OpenAI Codex contributed to the implementation and testing of paletted
-Anvil entity, block entity and item persistence in this fork.
+Anvil entity, block entity and item persistence in this fork, including
+bee gameplay, bee nests and beehives, and client compatibility.
 
 --------------------------------------------------------------------------------

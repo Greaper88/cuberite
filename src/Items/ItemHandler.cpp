@@ -19,6 +19,7 @@
 #include "ItemBow.h"
 #include "ItemBucket.h"
 #include "ItemButton.h"
+#include "ItemBeehive.h"
 #include "ItemChest.h"
 #include "ItemChorusFruit.h"
 #include "ItemCloth.h"
@@ -42,6 +43,7 @@
 #include "ItemGlazedTerracotta.h"
 #include "ItemGoldenApple.h"
 #include "ItemHoe.h"
+#include "ItemHoneyBottle.h"
 #include "ItemHopper.h"
 #include "ItemItemFrame.h"
 #include "ItemJackOLantern.h"
@@ -171,6 +173,11 @@ namespace
 	constexpr cDefaultItemHandler           ItemChainCommandBlockHandler               (E_BLOCK_CHAIN_COMMAND_BLOCK);
 	constexpr cItemArmorHandler             ItemChainHelmetHandler                     (E_ITEM_CHAIN_HELMET);
 	constexpr cItemArmorHandler             ItemChainLeggingsHandler                   (E_ITEM_CHAIN_LEGGINGS);
+	constexpr cItemBeehiveHandler           ItemBeehiveHandler                        (E_BLOCK_BEEHIVE);
+	constexpr cItemBeehiveHandler           ItemBeeNestHandler                        (E_ITEM_BEE_NEST);
+	constexpr cItemSpawnEggHandler          ItemBeeSpawnEggHandler                    (E_ITEM_BEE_SPAWN_EGG);
+	constexpr cItemHoneyBottleHandler       ItemHoneyBottleHandler                    (E_ITEM_HONEY_BOTTLE);
+	constexpr cDefaultItemHandler           ItemHoneycombHandler                      (E_ITEM_HONEYCOMB);
 	constexpr cItemChestHandler             ItemChestHandler                           (E_BLOCK_CHEST);
 	constexpr cItemMinecartHandler          ItemChestMinecartHandler                   (E_ITEM_CHEST_MINECART);
 	constexpr cDefaultItemHandler           ItemChirpDiscHandler                       (E_ITEM_CHIRP_DISC);
@@ -608,6 +615,7 @@ const cItemHandler & cItemHandler::For(int a_ItemType)
 		case E_BLOCK_CARROTS:                        return ItemCarrotsBlockHandler;
 		case E_BLOCK_CAULDRON:                       return ItemCauldronBlockHandler;
 		case E_BLOCK_CHAIN_COMMAND_BLOCK:            return ItemChainCommandBlockHandler;
+		case E_BLOCK_BEEHIVE:                        return ItemBeehiveHandler;
 		case E_BLOCK_CHEST:                          return ItemChestHandler;
 		case E_BLOCK_CHORUS_FLOWER:                  return ItemChorusFlowerHandler;
 		case E_BLOCK_CHORUS_PLANT:                   return ItemChorusPlantHandler;
@@ -860,6 +868,10 @@ const cItemHandler & cItemHandler::For(int a_ItemType)
 		case E_ITEM_CHAIN_CHESTPLATE:                return ItemChainChestplateHandler;
 		case E_ITEM_CHAIN_HELMET:                    return ItemChainHelmetHandler;
 		case E_ITEM_CHAIN_LEGGINGS:                  return ItemChainLeggingsHandler;
+		case E_ITEM_BEE_NEST:                        return ItemBeeNestHandler;
+		case E_ITEM_BEE_SPAWN_EGG:                   return ItemBeeSpawnEggHandler;
+		case E_ITEM_HONEY_BOTTLE:                    return ItemHoneyBottleHandler;
+		case E_ITEM_HONEYCOMB:                       return ItemHoneycombHandler;
 		case E_ITEM_CHEST_MINECART:                  return ItemChestMinecartHandler;
 		case E_ITEM_CHIRP_DISC:                      return ItemChirpDiscHandler;
 		case E_ITEM_CHORUS_FRUIT:                    return ItemChorusFruitHandler;
@@ -1189,6 +1201,8 @@ char cItemHandler::GetMaxStackSize(void) const
 		case E_ITEM_BANNER:               return 16;
 		case E_ITEM_BEETROOT:             return 64;
 		case E_ITEM_BEETROOT_SEEDS:       return 64;
+		case E_ITEM_BEE_NEST:            return 64;
+		case E_ITEM_BEE_SPAWN_EGG:       return 64;
 		case E_ITEM_BIRCH_DOOR:           return 64;
 		case E_ITEM_BLAZE_POWDER:         return 64;
 		case E_ITEM_BLAZE_ROD:            return 64;
@@ -1240,6 +1254,7 @@ char cItemHandler::GetMaxStackSize(void) const
 		case E_ITEM_GOLD_NUGGET:          return 64;
 		case E_ITEM_GUNPOWDER:            return 64;
 		case E_ITEM_HEAD:                 return 64;
+		case E_ITEM_HONEYCOMB:           return 64;
 		case E_ITEM_JUNGLE_DOOR:          return 64;
 		case E_ITEM_IRON:                 return 64;
 		case E_ITEM_IRON_DOOR:            return 64;

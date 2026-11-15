@@ -41,6 +41,7 @@ class cDeadlockDetect;
 class cUUID;
 
 struct SetChunkData;
+struct cNamedBlockState;
 
 
 
@@ -701,6 +702,11 @@ public:
 	const AString & GetEngineDataPath() const { return m_EngineDataPath; }
 	bool UsesPalettedAnvil() const { return m_UsesPalettedAnvil; }
 
+	/** Whether the loaded chunk can persist bees and bee homes in its original Java format. */
+	bool SupportsBees() const;
+	bool SupportsBeesAt(Vector3i a_Position) const;
+	bool UpdateNamedBlock(Vector3i a_Position, BLOCKTYPE a_ExpectedType, cNamedBlockState a_State);
+
 	// tolua_begin
 
 	/** Returns the name of the world.ini file used by this world */
@@ -963,6 +969,7 @@ private:
 	AString m_IniFileName;
 	AString m_EngineDataPath;
 	bool m_UsesPalettedAnvil = false;
+	int m_JavaDataVersion = 0;
 
 	/** Name of the storage schema used to load and save chunks */
 	AString m_StorageSchema;

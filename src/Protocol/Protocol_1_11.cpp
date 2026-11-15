@@ -510,6 +510,7 @@ UInt32 cProtocol_1_11_0::GetProtocolMobType(const eMonsterType a_MobType) const
 	{
 		// Map invalid type to Giant for easy debugging (if this ever spawns, something has gone very wrong)
 		case mtInvalidType:           return 53;
+		case mtBee:
 		case mtBat:                   return 65;
 		case mtBlaze:                 return 61;
 		case mtCaveSpider:            return 59;
@@ -1253,6 +1254,7 @@ void cProtocol_1_11_0::WriteMobMetadata(cPacketizer & a_Pkt, const cMonster & a_
 		case mtCaveSpider:
 		case mtEnderDragon:
 		case mtEndermite:
+		case mtBee:  // Older clients display a bat and use its default flags.
 		case mtGiant:
 		case mtIronGolem:
 		case mtMooshroom:

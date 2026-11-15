@@ -6,6 +6,7 @@
 
 namespace PaletteUpgrade
 {
+	BlockState FromBeeHome(NIBBLETYPE Meta, UInt8 HoneyLevel);
 	BlockState FromBlock(BLOCKTYPE Block, NIBBLETYPE Meta);
 	Item FromItem(short Item, short Damage);
 	std::pair<short, short> ToItem(Item ID);

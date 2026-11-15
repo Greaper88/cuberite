@@ -80,6 +80,7 @@ enum eMonsterType
 	mtZombieHorse,                  // Added in 1.6
 	mtZombifiedPiglin,
 	mtZombieVillager,
+	mtBee,                          // Added in 1.15
 
 	// Synonyms:
 	mtZombiePigman = mtZombifiedPiglin,

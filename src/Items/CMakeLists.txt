@@ -14,6 +14,7 @@ target_sources(
 	ItemBow.h
 	ItemBucket.h
 	ItemButton.h
+	ItemBeehive.h
 	ItemChest.h
 	ItemChorusFruit.h
 	ItemCloth.h
@@ -38,6 +39,7 @@ target_sources(
 	ItemGoldenApple.h
 	ItemHandler.h
 	ItemHoe.h
+	ItemHoneyBottle.h
 	ItemHopper.h
 	ItemItemFrame.h
 	ItemJackOLantern.h

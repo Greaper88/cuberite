@@ -37,26 +37,25 @@ namespace
 	template <cProtocol::Version Version>
 	auto PaletteLegacy(const BLOCKTYPE a_BlockType, const NIBBLETYPE a_Meta)
 	{
-		if constexpr (Version >= cProtocol::Version::v1_12)
-		{
-			return LegacyBlockFallbacks::cState{ a_BlockType, a_Meta }.Packed();
-		}
 		return LegacyBlockFallbacks::ForBlock(Version, a_BlockType, a_Meta).Packed();
 	}
 
 	auto Palette393(const BLOCKTYPE a_BlockType, const NIBBLETYPE a_Meta)
 	{
-		return Palette_1_13::From(PaletteUpgrade::FromBlock(a_BlockType, a_Meta));
+		const auto State = LegacyBlockFallbacks::ForBlock(cProtocol::Version::v1_13, a_BlockType, a_Meta);
+		return Palette_1_13::From(PaletteUpgrade::FromBlock(State.Type, State.Meta));
 	}
 
 	auto Palette401(const BLOCKTYPE a_BlockType, const NIBBLETYPE a_Meta)
 	{
-		return Palette_1_13_1::From(PaletteUpgrade::FromBlock(a_BlockType, a_Meta));
+		const auto State = LegacyBlockFallbacks::ForBlock(cProtocol::Version::v1_13_1, a_BlockType, a_Meta);
+		return Palette_1_13_1::From(PaletteUpgrade::FromBlock(State.Type, State.Meta));
 	}
 
 	auto Palette477(const BLOCKTYPE a_BlockType, const NIBBLETYPE a_Meta)
 	{
-		return Palette_1_14::From(PaletteUpgrade::FromBlock(a_BlockType, a_Meta));
+		const auto State = LegacyBlockFallbacks::ForBlock(cProtocol::Version::v1_14, a_BlockType, a_Meta);
+		return Palette_1_14::From(PaletteUpgrade::FromBlock(State.Type, State.Meta));
 	}
 
 	auto Palette578(const BLOCKTYPE a_BlockType, const NIBBLETYPE a_Meta)

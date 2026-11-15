@@ -4,6 +4,10 @@
 
 #include "Globals.h"
 #include "NBTChunkSerializer.h"
+#include "BeeNBT.h"
+#include "WorldFormat.h"
+#include "../BlockEntities/BeehiveEntity.h"
+#include "../Mobs/Bee.h"
 #include "EnchantmentSerializer.h"
 #include "NamespaceSerializer.h"
 #include "PalettedItemNBT.h"
@@ -65,6 +69,10 @@ namespace
 			case mtZombiePigman:
 			{
 				return "zombie_pigman";
+			}
+			case mtBee:
+			{
+				return (a_DataVersion >= JavaBeeDataVersion) ? "bee" : std::string_view{};
 			}
 			case mtCat:
 			case mtFox:
@@ -157,6 +165,7 @@ namespace
 			{"Banner", "banner"},
 			{"Beacon", "beacon"},
 			{"Bed", "bed"},
+			{"Beehive", "beehive"},
 			{"Brewingstand", "brewing_stand"},
 			{"Chest", "chest"},
 			{"Control", "command_block"},
@@ -326,9 +335,16 @@ public:
 
 	void AddEntityRecord(cEntity * a_Entity)
 	{
-		if (IsNative() && a_Entity->IsMob() && NativeMobID(static_cast<const cMonster &>(*a_Entity).GetMobType(), mDataVersion).empty())
+		if (a_Entity->IsMob())
 		{
-			return;
+			const auto Type = static_cast<const cMonster &>(*a_Entity).GetMobType();
+			if (
+				(IsNative() && NativeMobID(Type, mDataVersion).empty()) ||
+				((Type == mtBee) && (mDataVersion < JavaBeeDataVersion))
+			)
+			{
+				return;
+			}
 		}
 		switch (a_Entity->GetEntityType())
 		{
@@ -397,6 +413,17 @@ public:
 			case E_BLOCK_WALL_BANNER:       AddBannerEntity         (static_cast<cBannerEntity *>         (a_Entity)); break;
 
 			// Others:
+			case E_BLOCK_BEEHIVE:
+			{
+				if (mDataVersion >= JavaBeeDataVersion)
+				{
+					mWriter.BeginCompound("");
+					AddBasicTileEntity(a_Entity, "Beehive");
+					BeeNBT::WriteHive(mWriter, static_cast<const cBeehiveEntity &>(*a_Entity));
+					mWriter.EndCompound();
+				}
+				break;
+			}
 			case E_BLOCK_BEACON:            AddBeaconEntity         (static_cast<cBeaconEntity *>         (a_Entity)); break;
 			case E_BLOCK_BED:               AddBedEntity            (static_cast<cBedEntity *>            (a_Entity)); break;
 			case E_BLOCK_BREWING_STAND:     AddBrewingstandEntity   (static_cast<cBrewingstandEntity *>   (a_Entity)); break;
@@ -1247,6 +1274,11 @@ public:
 
 			switch (a_Monster->GetMobType())
 			{
+				case mtBee:
+				{
+					BeeNBT::WriteFields(mWriter, static_cast<const cBee &>(*a_Monster));
+					break;
+				}
 				case mtBat:
 				{
 					mWriter.AddByte("BatFlags", static_cast<const cBat *>(a_Monster)->IsHanging());

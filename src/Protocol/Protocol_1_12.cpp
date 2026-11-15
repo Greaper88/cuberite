@@ -964,6 +964,7 @@ void cProtocol_1_12::WriteMobMetadata(cPacketizer & a_Pkt, const cMonster & a_Mo
 		}
 
 		case mtEndermite:
+		case mtBee:  // Older clients display a bat and use its default flags.
 		case mtGiant:
 		case mtSilverfish:
 		case mtSquid:

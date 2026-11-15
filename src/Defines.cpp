@@ -161,7 +161,7 @@ bool IsValidBlock(int a_BlockType)
 {
 	return (
 		((a_BlockType > -1) && (a_BlockType <= E_BLOCK_MAX_TYPE_ID)) ||
-		(a_BlockType == 255)  // the blocks 253-254 don't exist yet -> https://minecraft.wiki/w/Data_values#Block_IDs
+		(a_BlockType == E_BLOCK_STRUCTURE_BLOCK)  // The unfinished-block sentinel separates this from the consecutive range.
 	);
 }
 
@@ -173,6 +173,7 @@ bool IsValidItem(int a_ItemType)
 {
 	if (
 		((a_ItemType >= E_ITEM_FIRST) && (a_ItemType <= E_ITEM_MAX_CONSECUTIVE_TYPE_ID)) ||  // Basic items range
+		((a_ItemType >= E_ITEM_BEE_NEST) && (a_ItemType <= E_ITEM_HONEYCOMB)) ||
 		((a_ItemType >= E_ITEM_FIRST_DISC) && (a_ItemType <= E_ITEM_LAST_DISC))   // Music discs' special range
 	)
 	{

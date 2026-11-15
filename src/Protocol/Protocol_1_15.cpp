@@ -4,14 +4,16 @@
 #include "Protocol/Palettes/Palette_1_15.h"
 #include "Protocol/Palettes/Upgrade.h"
 
+#include "BlockEntities/BeehiveEntity.h"
 #include "ClientHandle.h"
 #include "Entities/FallingBlock.h"
 #include "Entities/Minecart.h"
 #include "Entities/Player.h"
 #include "JsonUtils.h"
-#include "Mobs/Monster.h"
+#include "Mobs/Bee.h"
 #include "Root.h"
 #include "Server.h"
+#include "World.h"
 
 
 
@@ -265,6 +267,13 @@ void cProtocol_1_15_2::SendUnlockRecipe(UInt32 a_RecipeID)
 
 UInt8 cProtocol_1_15_2::GetEntityMetadataID(EntityMetadata a_Field) const
 {
+	switch (a_Field)
+	{
+		case EntityMetadata::AgeableIsBaby: return 15;
+		case EntityMetadata::BeeFlags:      return 16;
+		case EntityMetadata::BeeAngerTicks: return 17;
+		default: break;
+	}
 	const auto Index = Super::GetEntityMetadataID(a_Field);
 	if ((a_Field == EntityMetadata::PlayerDisplayedSkinParts) || (a_Field == EntityMetadata::PlayerMainHand))
 	{
@@ -415,6 +424,10 @@ UInt32 cProtocol_1_15_2::GetProtocolItemType(short a_Type, short a_Damage) const
 
 UInt32 cProtocol_1_15_2::GetProtocolMobType(eMonsterType a_Type) const
 {
+	if (a_Type == mtBee)
+	{
+		return 4;
+	}
 	const auto Type = Super::GetProtocolMobType(a_Type);
 	return (Type >= 4) ? Type + 1 : Type;
 }
@@ -532,11 +545,25 @@ void cProtocol_1_15_2::HandlePacketBlockDig(cByteBuffer & a_Buffer)
 
 	BLOCKTYPE Type;
 	NIBBLETYPE Meta;
-	if (m_Client->GetPlayer()->GetWorld()->GetBlockTypeMeta(Position, Type, Meta))
+	auto & World = *m_Client->GetPlayer()->GetWorld();
+	if (World.GetBlockTypeMeta(Position, Type, Meta))
 	{
+		auto BlockState = GetProtocolBlockType(Type, Meta);
+		if (Type == E_BLOCK_BEEHIVE)
+		{
+			World.DoWithBlockEntityAt(Position, [&](cBlockEntity & a_BlockEntity)
+			{
+				if (a_BlockEntity.GetBlockType() == E_BLOCK_BEEHIVE)
+				{
+					const auto & Home = static_cast<const cBeehiveEntity &>(a_BlockEntity);
+					BlockState = Palette_1_15::From(PaletteUpgrade::FromBeeHome(Meta, static_cast<UInt8>(Home.GetHoneyLevel())));
+				}
+				return true;
+			});
+		}
 		cPacketizer Packet(*this, pktAcknowledgeBlockDig);
 		Packet.WriteXZYPosition64(Position);
-		Packet.WriteVarInt32(GetProtocolBlockType(Type, Meta));
+		Packet.WriteVarInt32(BlockState);
 		Packet.WriteVarInt32(Status);
 		// Always reconcile with the server's block state, including plugin vetoes.
 		Packet.WriteBool(false);
@@ -591,6 +618,17 @@ void cProtocol_1_15_2::WriteEntityMetadata(cPacketizer & a_Packet, const cEntity
 			a_Packet.WriteString(JsonUtils::SerializeSingleValueJsonObject("text", Mob.GetCustomName()));
 			Super::WriteEntityMetadata(a_Packet, EntityMetadata::EntityCustomNameVisible, EntityMetadataType::Boolean);
 			a_Packet.WriteBool(Mob.IsCustomNameAlwaysVisible());
+		}
+		if (Mob.GetMobType() == mtBee)
+		{
+			const auto & Bee = static_cast<const cBee &>(Mob);
+			const auto Flags = (Bee.IsRolling() ? 0x02 : 0) | (Bee.HasStung() ? 0x04 : 0) | (Bee.HasNectar() ? 0x08 : 0);
+			Super::WriteEntityMetadata(a_Packet, EntityMetadata::AgeableIsBaby, EntityMetadataType::Boolean);
+			a_Packet.WriteBool(Bee.IsBaby());
+			Super::WriteEntityMetadata(a_Packet, EntityMetadata::BeeFlags, EntityMetadataType::Byte);
+			a_Packet.WriteBEUInt8(static_cast<UInt8>(Flags));
+			Super::WriteEntityMetadata(a_Packet, EntityMetadata::BeeAngerTicks, EntityMetadataType::VarInt);
+			a_Packet.WriteVarInt32(ToUnsigned(Bee.GetAngerTicks()));
 		}
 	}
 }

@@ -16,6 +16,7 @@
 #include "BlockCake.h"
 #include "BlockCarpet.h"
 #include "BlockCauldron.h"
+#include "BlockBeehive.h"
 #include "BlockChest.h"
 #include "BlockCloth.h"
 #include "BlockCobWeb.h"
@@ -232,6 +233,7 @@ namespace
 	constexpr cBlockCropsHandler<7>           BlockCarrotsHandler               (E_BLOCK_CARROTS);  // 8 stages of growth
 	constexpr cBlockCauldronHandler           BlockCauldronHandler              (E_BLOCK_CAULDRON);
 	constexpr cBlockCommandBlockHandler       BlockChainCommandBlockHandler     (E_BLOCK_CHAIN_COMMAND_BLOCK);
+	constexpr cBlockBeehiveHandler            BlockBeehiveHandler               (E_BLOCK_BEEHIVE);
 	constexpr cBlockChestHandler              BlockChestHandler                 (E_BLOCK_CHEST);
 	constexpr cDefaultBlockHandler            BlockChorusFlowerHandler          (E_BLOCK_CHORUS_FLOWER);
 	constexpr cDefaultBlockHandler            BlockChorusPlantHandler           (E_BLOCK_CHORUS_PLANT);
@@ -674,6 +676,7 @@ const cBlockHandler & cBlockHandler::For(BLOCKTYPE a_BlockType)
 		case E_BLOCK_CARROTS:                       return BlockCarrotsHandler;
 		case E_BLOCK_CAULDRON:                      return BlockCauldronHandler;
 		case E_BLOCK_CHAIN_COMMAND_BLOCK:           return BlockChainCommandBlockHandler;
+		case E_BLOCK_BEEHIVE:                       return BlockBeehiveHandler;
 		case E_BLOCK_CHEST:                         return BlockChestHandler;
 		case E_BLOCK_CHORUS_FLOWER:                 return BlockChorusFlowerHandler;
 		case E_BLOCK_CHORUS_PLANT:                  return BlockChorusPlantHandler;
@@ -892,7 +895,6 @@ const cBlockHandler & cBlockHandler::For(BLOCKTYPE a_BlockType)
 		case E_BLOCK_YELLOW_SHULKER_BOX:            return BlockYellowShulkerBoxHandler;
 
 		// TODO: these will be removed in 1.13+ migration
-		case E_BLOCK_NUMBER_OF_TYPES:
 		case E_BLOCK_UNFINISHED: return BlockAirHandler;
 	}
 	UNREACHABLE("Getting handler for unexpected block type");

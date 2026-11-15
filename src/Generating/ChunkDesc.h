@@ -248,6 +248,11 @@ public:
 	/** Compresses the metas from the BlockArea format (1 meta per byte) into regular format (2 metas per byte) */
 	void CompressBlockMetas(cChunkDef::BlockNibbles & a_DestMetas);
 
+	void SetGenerateBeeNests(bool a_Enable) { m_GenerateBeeNests = a_Enable; }
+	bool ShouldGenerateBeeNests() const { return m_GenerateBeeNests; }
+	void AddBeeNestTrunk(Vector3i a_Trunk) { m_BeeNestTrunks.push_back(a_Trunk); }
+	const std::vector<Vector3i> & GetBeeNestTrunks() const { return m_BeeNestTrunks; }
+
 	#ifndef NDEBUG
 	/** Verifies that the heightmap corresponds to blocktype contents; if not, asserts on that column */
 	void VerifyHeightmap(void);
@@ -260,6 +265,8 @@ private:
 	cBlockArea              m_BlockArea;
 	cChunkDef::HeightMap    m_HeightMap;
 	cEntityList             m_Entities;
+	std::vector<Vector3i>   m_BeeNestTrunks;
+	bool m_GenerateBeeNests = false;
 
 	bool m_bUseDefaultBiomes;
 	bool m_bUseDefaultHeight;

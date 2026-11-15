@@ -145,6 +145,7 @@ std::string_view NamespaceSerializer::From(const eMonsterType a_ID)
 	switch (a_ID)
 	{
 		case mtBat:            return "bat";
+		case mtBee:            return "bee";
 		case mtBlaze:          return "blaze";
 		case mtCat:            return "cat";
 		case mtCaveSpider:     return "cave_spider";
@@ -435,6 +436,7 @@ eMonsterType NamespaceSerializer::ToMonsterType(const std::string_view a_ID)
 	static const std::unordered_map<std::string_view, eMonsterType> MonsterTypes
 	{
 		{ "bat",              mtBat },
+		{ "bee",              mtBee },
 		{ "blaze",            mtBlaze },
 		{ "cat",              mtCat },
 		{ "cave_spider",      mtCaveSpider },

@@ -26,6 +26,9 @@ struct cWorldStorageFormat
 /** Java 1.15.2, the default Anvil data version for new worlds. */
 constexpr int CurrentJavaWorldDataVersion = 2230;
 
+/** Java 1.15 was the first release to store bees and their homes. */
+constexpr int JavaBeeDataVersion = 2225;
+
 /** Last Java release data version that uses numeric block IDs in Anvil chunks. */
 constexpr int LegacyAnvilMaxDataVersion = 1343;
 

@@ -167,6 +167,37 @@ void cChunkMap::WakeUpSimulators(Vector3i a_Block)
 
 
 
+int cChunkMap::GetChunkDataVersion(Vector3i a_Position) const
+{
+	cCSLock Lock(m_CSChunks);
+	const auto Coords = cChunkDef::BlockToChunk(a_Position);
+	const auto Chunk = FindChunk(Coords.m_ChunkX, Coords.m_ChunkZ);
+	return ((Chunk != nullptr) && Chunk->IsValid()) ? Chunk->GetDataVersion() : 0;
+}
+
+
+
+
+
+bool cChunkMap::UpdateNamedBlock(Vector3i a_Position, BLOCKTYPE a_ExpectedType, cNamedBlockState a_State)
+{
+	if (!cChunkDef::IsValidHeight(a_Position))
+	{
+		return false;
+	}
+
+	cCSLock Lock(m_CSChunks);
+	const auto Coords = cChunkDef::BlockToChunk(a_Position);
+	const auto Chunk = FindChunk(Coords.m_ChunkX, Coords.m_ChunkZ);
+	return
+		(Chunk != nullptr) && Chunk->IsValid() &&
+		Chunk->UpdateNamedBlock(cChunkDef::AbsoluteToRelative(a_Position, Coords), a_ExpectedType, std::move(a_State));
+}
+
+
+
+
+
 void cChunkMap::MarkChunkDirty(int a_ChunkX, int a_ChunkZ)
 {
 	cCSLock Lock(m_CSChunks);

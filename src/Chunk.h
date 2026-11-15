@@ -103,6 +103,8 @@ public:
 	BlockLight and BlockSkyLight are optional, if not present, chunk will be marked as unlighted.
 	Modifies the BlockEntity list in a_SetChunkData - moves the block entities into the chunk. */
 	void SetAllData(SetChunkData && a_SetChunkData);
+	int GetDataVersion() const { return m_DataVersion; }
+	bool UpdateNamedBlock(Vector3i a_RelPos, BLOCKTYPE a_ExpectedType, cNamedBlockState a_State);
 
 	void SetLight(
 		const cChunkDef::BlockNibbles & a_BlockLight,
@@ -288,12 +290,7 @@ public:
 		SetMeta({ a_RelX, a_RelY, a_RelZ }, a_Meta);
 	}
 
-	inline void SetMeta(Vector3i a_RelPos, NIBBLETYPE a_Meta)
-	{
-		m_BlockData.SetMeta(a_RelPos, a_Meta);
-		MarkDirty();
-		m_PendingSendBlocks.emplace_back(m_PosX, m_PosZ, a_RelPos.x, a_RelPos.y, a_RelPos.z, GetBlock(a_RelPos), a_Meta);
-	}
+	void SetMeta(Vector3i a_RelPos, NIBBLETYPE a_Meta);
 
 	/** Light alterations based on time */
 	NIBBLETYPE GetTimeAlteredLight(NIBBLETYPE a_Skylight) const;
@@ -510,6 +507,7 @@ private:
 	cWorld *    m_World;
 	cChunkMap * m_ChunkMap;
 
+	int m_DataVersion = 0;
 	ChunkBlockData m_BlockData;
 	ChunkLightData m_LightData;
 

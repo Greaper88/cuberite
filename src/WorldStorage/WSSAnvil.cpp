@@ -1,5 +1,9 @@
 #include "Globals.h"
 #include "WSSAnvil.h"
+#include "BeeNBT.h"
+#include "WorldFormat.h"
+#include "../BlockEntities/BeehiveEntity.h"
+#include "../Mobs/Bee.h"
 #include "NBTChunkSerializer.h"
 #include "PalettedItemNBT.h"
 #include "Protocol/Palettes/NamedBlockPalette.h"
@@ -691,6 +695,20 @@ OwnedBlockEntity cWSSAnvil::LoadBlockEntityFromNBT(const cParsedNBT & a_NBT, int
 		case E_BLOCK_WALL_BANNER:        return LoadBannerFromNBT          (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);
 
 		// Others:
+		case E_BLOCK_BEEHIVE:
+		{
+			const auto ID = a_NBT.FindChildByName(a_Tag, "id");
+			if (
+				(m_EntityDataVersion < JavaBeeDataVersion) ||
+				(ID < 0) || (a_NBT.GetType(ID) != TAG_String) || (a_NBT.GetStringView(ID) != "minecraft:beehive")
+			)
+			{
+				return nullptr;
+			}
+			auto Hive = std::make_unique<cBeehiveEntity>(a_BlockType, a_BlockMeta, a_Pos, nullptr);
+			BeeNBT::ReadHive(*Hive, a_NBT, a_Tag);
+			return Hive;
+		}
 		case E_BLOCK_BEACON:             return LoadBeaconFromNBT          (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);
 		case E_BLOCK_BED:                return LoadBedFromNBT             (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);
 		case E_BLOCK_BREWING_STAND:      return LoadBrewingstandFromNBT    (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);
@@ -1725,6 +1743,20 @@ void cWSSAnvil::LoadEntityFromNBT(cEntityList & a_Entities, const cParsedNBT & a
 	switch (NamespaceSerializer::ToMonsterType(StatInfo.second))
 	{
 		case mtBat:             return LoadBatFromNBT(a_Entities, a_NBT, a_EntityTagIdx);
+		case mtBee:
+		{
+			if (m_EntityDataVersion < JavaBeeDataVersion)
+			{
+				return;
+			}
+			auto Bee = std::make_unique<cBee>();
+			if (LoadEntityBaseFromNBT(*Bee, a_NBT, a_EntityTagIdx))
+			{
+				BeeNBT::ReadFields(*Bee, a_NBT, a_EntityTagIdx);
+				a_Entities.push_back(std::move(Bee));
+			}
+			return;
+		}
 		case mtBlaze:           return LoadBlazeFromNBT(a_Entities, a_NBT, a_EntityTagIdx);
 		case mtCat:             return LoadCatFromNBT(a_Entities, a_NBT, a_EntityTagIdx);
 		case mtCaveSpider:      return LoadCaveSpiderFromNBT(a_Entities, a_NBT, a_EntityTagIdx);

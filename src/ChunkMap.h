@@ -66,6 +66,8 @@ public:
 	}
 
 	void MarkChunkDirty     (int a_ChunkX, int a_ChunkZ);
+	int GetChunkDataVersion(Vector3i a_Position) const;
+	bool UpdateNamedBlock(Vector3i a_Position, BLOCKTYPE a_ExpectedType, cNamedBlockState a_State);
 	void MarkChunkSaving    (int a_ChunkX, int a_ChunkZ);
 	void MarkChunkSaved     (int a_ChunkX, int a_ChunkZ);
 

@@ -39,7 +39,13 @@ public:
 			PlacementPos.y--;
 		}
 
-		auto MonsterType = ItemDamageToMonsterType(a_HeldItem.m_ItemDamage);
+		const bool IsBeeEgg = (m_ItemType == E_ITEM_BEE_SPAWN_EGG);
+		if (IsBeeEgg && !a_World->SupportsBeesAt(PlacementPos))
+		{
+			return false;
+		}
+
+		const auto MonsterType = IsBeeEgg ? mtBee : ItemDamageToMonsterType(a_HeldItem.m_ItemDamage);
 		if (
 			(MonsterType != mtInvalidType) &&  // Valid monster type
 			(a_World->SpawnMob(PlacementPos.x + 0.5, PlacementPos.y, PlacementPos.z + 0.5, MonsterType, false) != cEntity::INVALID_ID))  // Spawning succeeded
