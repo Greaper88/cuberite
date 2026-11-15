@@ -202,10 +202,9 @@ bool cRoot::Run(cSettingsRepositoryInterface & a_OverridesRepo)
 	settingsRepo->Flush();
 
 	LOGD("Finalising startup...");
-	if (m_Server->Start())
+	const bool ServerStarted = m_Server->Start(m_WebAdmin->Start());
+	if (ServerStarted)
 	{
-		m_WebAdmin->Start();
-
 		LOG("Startup complete, took %ldms!", static_cast<long int>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - BeginTime).count()));
 
 		// Save the current time
@@ -214,13 +213,14 @@ bool cRoot::Run(cSettingsRepositoryInterface & a_OverridesRepo)
 		HandleInput();
 
 		s_StopEvent.Wait();
+	}
 
-		// Stop the server:
-		m_WebAdmin->Stop();
-
+	m_WebAdmin->Stop();
+	if (ServerStarted)
+	{
 		LOG("Shutting down server...");
 		m_Server->Shutdown();
-	}  // if (m_Server->Start()
+	}
 
 	delete m_MojangAPI; m_MojangAPI = nullptr;
 

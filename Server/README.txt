@@ -29,15 +29,25 @@ Older Java clients automatically receive a supported substitute for missing
 blocks. Mining, placement and block behavior use the real block on the
 server. Some substitutes differ in shape, color or client-side prediction.
 
-From the source checkout, generate the optional packs with Python 3 and your
-local vanilla Java 1.12.2 client JAR. Point --output at a directory served by
-your HTTP server and --base-url at its client-accessible URL.
+To use the built-in HTTP server, enable WebAdmin and set ResourcePackBaseUrl
+in the [Server] section of settings.ini to a URL reachable by players.
 
-    python3 Tools/LegacyResourcePacks/generate.py /path/to/1.12.2.jar --output /path/to/web/packs --base-url https://example.org/packs
+    [Server]
+    ResourcePackBaseUrl=http://minecraft.example.org:8080
 
-Merge the printed entries into [ResourcePacks] in settings.ini and restart
-Cuberite. The ZIPs use content-based names and the entries include their
-SHA-1 hashes. The generator reads the textures locally from the client JAR.
+From the source checkout, generate the packs with Python 3 and your local
+vanilla Java 1.12.2 client JAR. Set --output to resource-packs beside the
+server's settings.ini and restart Cuberite.
+
+    python3 Tools/LegacyResourcePacks/generate.py /path/to/1.12.2.jar --output /path/to/server/resource-packs
+
+Cuberite automatically offers each resource-packs/<protocol>.zip to the
+matching Java clients and serves it from a public, content-addressed HTTP
+route. Explicit [ResourcePacks] entries override the local ZIP for that
+protocol. The WebAdmin pages still require their configured login. If you
+use a reverse proxy, route /resource-packs/ to Cuberite's HTTP listener.
+To host packs externally, also pass --base-url to the generator and merge
+the printed [ResourcePacks] entries into settings.ini.
 
 The 1.8 pack textures purpur blocks and end stone bricks. The 1.8 and 1.9
 packs also texture magma, nether wart blocks and red nether bricks. Other
@@ -51,5 +61,11 @@ This adapter runs the existing Cuberite worlds and block set. It supports
 chunk and light streaming, movement, inventory, and basic block interactions.
 The recipe book, command suggestions, and specialised entity metadata are
 incomplete. Java 1.19.4 and display entities are future milestones.
+
+World storage is selected when a world opens. New worlds use the current
+writable format, which is legacy Java Anvil with numeric block IDs. This
+build refuses to open recognized McRegion, newer Java, and Bedrock worlds.
+A legacy region record that fails to load is protected from replacement
+even if the server generates temporary terrain in its place.
 
 --------------------------------------------------------------------------------

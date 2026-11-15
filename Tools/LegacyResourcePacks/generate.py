@@ -77,20 +77,23 @@ def build_pack(client, pack_format, mappings):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("client_jar", type=Path, help="path to the installed 1.12.2.jar")
-    parser.add_argument("--output", type=Path, required=True, help="directory served by your HTTP server")
-    parser.add_argument("--base-url", required=True, help="public HTTP(S) URL of the output directory")
+    parser.add_argument("--output", type=Path, required=True, help="output directory, typically the server's resource-packs directory")
+    parser.add_argument("--base-url", help="public HTTP(S) URL for external hosting. Omit for built-in hosting.")
     args = parser.parse_args()
 
+    external = args.base_url is not None
     try:
-        url = urlsplit(args.base_url)
-        if (
-            url.scheme not in ("http", "https") or not url.hostname or url.username
-            or url.query or url.fragment or any(char.isspace() for char in args.base_url)
-        ):
-            raise ValueError("--base-url must be an HTTP(S) directory URL without credentials, query or fragment")
+        if external:
+            url = urlsplit(args.base_url)
+            if (
+                url.scheme not in ("http", "https") or not url.hostname or url.username
+                or url.query or url.fragment or any(char.isspace() for char in args.base_url)
+            ):
+                raise ValueError("--base-url must be an HTTP(S) directory URL without credentials, query or fragment")
 
         mappings = read_mappings()
         packs = {}
+        output_files = {}
         offers = []
         with ZipFile(args.client_jar) as client:
             for protocol, pack_format in PACK_FORMATS.items():
@@ -102,21 +105,28 @@ def main():
                     data = build_pack(client, pack_format, blocks)
                     digest = hashlib.sha1(data).hexdigest()
                     packs[key] = data, digest
-                _, digest = packs[key]
-                offers.append(f"{protocol}={args.base_url.rstrip('/')}/cuberite-legacy-{digest}.zip {digest}")
+                data, digest = packs[key]
+                if external:
+                    filename = f"cuberite-legacy-{digest}.zip"
+                    offers.append(f"{protocol}={args.base_url.rstrip('/')}/{filename} {digest}")
+                else:
+                    filename = f"{protocol}.zip"
+                output_files[filename] = data
 
         args.output.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=args.output) as staging:
-            for data, digest in packs.values():
-                filename = f"cuberite-legacy-{digest}.zip"
+            for filename, data in output_files.items():
                 staged = Path(staging) / filename
                 staged.write_bytes(data)
                 staged.replace(args.output / filename)
     except (OSError, BadZipFile, KeyError, ValueError) as error:
         parser.exit(1, f"Could not generate legacy resource packs: {error}\n")
 
-    print("[ResourcePacks]")
-    print("\n".join(offers))
+    if external:
+        print("[ResourcePacks]")
+        print("\n".join(offers))
+    else:
+        print(f"Generated {len(output_files)} protocol packs in {args.output}")
 
 
 if __name__ == "__main__":

@@ -15,6 +15,8 @@
 #include "Item.h"
 #include "FurnaceRecipe.h"
 #include "WebAdmin.h"
+#include "HTTP/UrlParser.h"
+#include "mbedTLS++/Sha1Checksum.h"
 #include "Protocol/ProtocolRecognizer.h"
 #include "CommandOutput.h"
 #include "FastRandom.h"
@@ -210,6 +212,8 @@ bool cServer::InitServer(cSettingsRepositoryInterface & a_Settings, bool a_Shoul
 		m_ResourcePacksByVersion.emplace(ProtocolVersion, std::move(Pack));
 	}
 
+	LoadHostedResourcePacks(a_Settings.GetValueSet("Server", "ResourcePackBaseUrl", ""));
+
 	m_ExperimentalJava1152 = a_Settings.GetValueSetB("Server", "EnableExperimentalJava1152", false);
 	LOGINFO("Compatible clients: %s", MCS_CLIENT_VERSIONS);
 	if (m_ExperimentalJava1152)
@@ -281,10 +285,117 @@ bool cServer::InitServer(cSettingsRepositoryInterface & a_Settings, bool a_Shoul
 
 
 
+void cServer::LoadHostedResourcePacks(AString a_BaseUrl)
+{
+	if (a_BaseUrl.empty())
+	{
+		return;
+	}
+
+	AString Scheme, User, Password, Host, Path, Query, Fragment;
+	UInt16 Port;
+	if (
+		(a_BaseUrl.find_first_of("?#@ \t\r\n") != AString::npos) ||
+		!cUrlParser::Parse(a_BaseUrl, Scheme, User, Password, Host, Port, Path, Query, Fragment).first ||
+		((Scheme != "http") && (Scheme != "https")) ||
+		(NoCaseCompare(a_BaseUrl.substr(0, Scheme.size() + 3), Scheme + "://") != 0) ||
+		Host.empty() || (Host.find('/') != AString::npos) || (Port == 0)
+	)
+	{
+		LOGWARNING("Ignoring invalid Server.ResourcePackBaseUrl. Expected a client-accessible HTTP(S) base URL.");
+		return;
+	}
+	a_BaseUrl.erase(a_BaseUrl.find_last_not_of('/') + 1);
+
+	const AString PackFolder = "resource-packs";
+	if (!cFile::IsFolder(PackFolder))
+	{
+		LOGWARNING("Built-in resource packs are configured, but the resource-packs folder is missing.");
+		return;
+	}
+
+	constexpr long MaxPackSize = 50 * 1024 * 1024;
+	for (const auto & Name : cFile::GetFolderContents(PackFolder))
+	{
+		const auto Extension = Name.find('.');
+		UInt32 Protocol;
+		if (
+			(Extension == AString::npos) || (Name.compare(Extension, AString::npos, ".zip") != 0) ||
+			!StringToInteger(Name.substr(0, Extension), Protocol) || (Protocol == 0) ||
+			(Name != fmt::format(FMT_STRING("{}.zip"), Protocol)) ||
+			(m_ResourcePacksByVersion.find(Protocol) != m_ResourcePacksByVersion.end())
+		)
+		{
+			continue;
+		}
+
+		const auto PackPath = PackFolder + cFile::PathSeparator() + Name;
+		if (!cFile::IsFile(PackPath))
+		{
+			continue;
+		}
+
+		cFile File(PackPath, cFile::fmRead);
+		const long Size = File.IsOpen() ? File.GetSize() : -1;
+		if ((Size < 4) || (Size > MaxPackSize))
+		{
+			LOGWARNING("Ignoring resource pack '%s'. Expected a readable ZIP file up to 50 MiB.", PackPath);
+			continue;
+		}
+		auto Content = File.Read(static_cast<size_t>(Size));
+		if ((Content.size() != static_cast<size_t>(Size)) || (std::memcmp(Content.data(), "PK\x03\x04", 4) != 0))
+		{
+			LOGWARNING("Ignoring resource pack '%s'. Could not read the ZIP file.", PackPath);
+			continue;
+		}
+
+		cSha1Checksum Checksum;
+		Checksum.Update(reinterpret_cast<const Byte *>(Content.data()), Content.size());
+		cSha1Checksum::Checksum Digest;
+		Checksum.Finalize(Digest);
+		AString Sha1;
+		cSha1Checksum::DigestToHex(Digest, Sha1);
+		const auto Route = fmt::format(FMT_STRING("{}{}.zip"), HostedResourcePackRoute, Sha1);
+		m_HostedResourcePacksByVersion.emplace(Protocol, cResourcePack{a_BaseUrl + Route, std::move(Sha1)});
+		m_HostedResourcePackFiles.try_emplace(Route, std::move(Content));
+	}
+
+	if (m_HostedResourcePacksByVersion.empty())
+	{
+		LOGINFO("No local protocol resource packs to offer. Built-in packs use resource-packs/<protocol>.zip.");
+	}
+}
+
+
+
+
+
 const cServer::cResourcePack & cServer::GetResourcePack(UInt32 a_ProtocolVersion) const
 {
-	const auto Pack = m_ResourcePacksByVersion.find(a_ProtocolVersion);
-	return (Pack != m_ResourcePacksByVersion.end()) ? Pack->second : m_DefaultResourcePack;
+	const auto External = m_ResourcePacksByVersion.find(a_ProtocolVersion);
+	if (External != m_ResourcePacksByVersion.end())
+	{
+		return External->second;
+	}
+	if (m_HostedResourcePacksAvailable)
+	{
+		const auto Hosted = m_HostedResourcePacksByVersion.find(a_ProtocolVersion);
+		if (Hosted != m_HostedResourcePacksByVersion.end())
+		{
+			return Hosted->second;
+		}
+	}
+	return m_DefaultResourcePack;
+}
+
+
+
+
+
+const ContiguousByteBuffer * cServer::GetHostedResourcePack(const AString & a_Path) const
+{
+	const auto Pack = m_HostedResourcePackFiles.find(a_Path);
+	return (Pack == m_HostedResourcePackFiles.end()) ? nullptr : &Pack->second;
 }
 
 
@@ -453,8 +564,14 @@ void cServer::TickClients(float a_Dt)
 
 
 
-bool cServer::Start(void)
+bool cServer::Start(bool a_WebAdminIsRunning)
 {
+	m_HostedResourcePacksAvailable = a_WebAdminIsRunning;
+	if (!m_HostedResourcePacksAvailable && !m_HostedResourcePacksByVersion.empty())
+	{
+		LOGWARNING("Built-in resource packs will not be offered because the WebAdmin HTTP listener is unavailable.");
+	}
+
 	for (const auto & port: m_Ports)
 	{
 		UInt16 PortNum;

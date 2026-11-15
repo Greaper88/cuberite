@@ -109,9 +109,15 @@ public:
 	/** Returns the pack configured for this protocol, or the default pack. An empty URL means no pack is offered. */
 	const cResourcePack & GetResourcePack(UInt32 a_ProtocolVersion) const;
 
+	/** Public route for the local, protocol-specific ZIPs. */
+	static constexpr std::string_view HostedResourcePackRoute = "/resource-packs/";
+
+	/** Gets the bytes of a registered ZIP by its exact public path. */
+	const ContiguousByteBuffer * GetHostedResourcePack(const AString & a_Path) const;
+
 	std::string_view GetCustomRedirectUrl(void) { return m_CustomRedirectUrl; }
 
-	bool Start(void);
+	bool Start(bool a_WebAdminIsRunning);
 
 	bool Command(cClientHandle & a_Client, AString & a_Cmd);
 
@@ -238,6 +244,13 @@ private:
 	bool m_bIsHardcore;
 	bool m_RequireResourcePack;
 	bool m_ExperimentalJava1152 = false;
+	/** Indexes protocol-specific packs and ZIP contents before the HTTP listener starts. */
+	void LoadHostedResourcePacks(AString a_BaseUrl);
+
+	bool m_HostedResourcePacksAvailable = false;
+	std::map<UInt32, cResourcePack> m_HostedResourcePacksByVersion;
+	std::map<AString, ContiguousByteBuffer> m_HostedResourcePackFiles;
+
 	cResourcePack m_DefaultResourcePack;
 	std::map<UInt32, cResourcePack> m_ResourcePacksByVersion;
 	AString m_CustomRedirectUrl;

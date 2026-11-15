@@ -31,8 +31,11 @@ cHTTPServerConnection::~cHTTPServerConnection() = default;
 void cHTTPServerConnection::SendStatusAndReason(int a_StatusCode, const AString & a_Response)
 {
 	SendData(fmt::format(FMT_STRING("HTTP/1.1 {} {}\r\n"), a_StatusCode, a_Response));
-	SendData(fmt::format(FMT_STRING("Content-Length: {}\r\n\r\n"), a_Response));
-	SendData(a_Response.data(), a_Response.size());
+	SendData(fmt::format(FMT_STRING("Content-Length: {}\r\n\r\n"), a_Response.size()));
+	if ((m_CurrentRequest == nullptr) || (m_CurrentRequest->GetMethod() != "HEAD"))
+	{
+		SendData(a_Response.data(), a_Response.size());
+	}
 	m_CurrentRequest.reset();
 	m_Parser.Reset();
 }

@@ -670,6 +670,28 @@ void cWebAdmin::OnRequestBody(cHTTPServerConnection & a_Connection, cHTTPIncomin
 void cWebAdmin::OnRequestFinished(cHTTPServerConnection & a_Connection, cHTTPIncomingRequest & a_Request)
 {
 	const AString & URL = a_Request.GetURL();
+	if (URL.compare(0, cServer::HostedResourcePackRoute.size(), cServer::HostedResourcePackRoute) == 0)
+	{
+		if (a_Request.GetMethod() != "GET")
+		{
+			a_Connection.SendStatusAndReason(405, "Method Not Allowed");
+			return;
+		}
+		const auto Pack = cRoot::Get()->GetServer()->GetHostedResourcePack(a_Request.GetURLPath());
+		if (Pack == nullptr)
+		{
+			a_Connection.SendStatusAndReason(404, "Not Found");
+			return;
+		}
+
+		cHTTPOutgoingResponse Resp;
+		Resp.SetContentType("application/zip");
+		Resp.AddHeader("Cache-Control", "public, max-age=31536000, immutable");
+		a_Connection.Send(Resp);
+		a_Connection.Send(Pack->data(), Pack->size());
+		a_Connection.FinishResponse();
+		return;
+	}
 	if (
 		(strncmp(URL.c_str(), "/webadmin", 9) == 0) ||
 		(strncmp(URL.c_str(), "/~webadmin", 10) == 0)
