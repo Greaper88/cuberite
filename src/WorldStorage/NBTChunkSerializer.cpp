@@ -11,6 +11,7 @@
 #include "EnchantmentSerializer.h"
 #include "NamespaceSerializer.h"
 #include "PalettedItemNBT.h"
+#include "../Protocol/LegacyBlockFallbacks.h"
 #include "../Protocol/Palettes/NamedBlockPalette.h"
 #include "../JsonUtils.h"
 #include "../ChunkDataCallback.h"
@@ -166,6 +167,7 @@ namespace
 			{"Beacon", "beacon"},
 			{"Bed", "bed"},
 			{"Beehive", "beehive"},
+			{"Campfire", "campfire"},
 			{"Brewingstand", "brewing_stand"},
 			{"Chest", "chest"},
 			{"Control", "command_block"},
@@ -426,6 +428,17 @@ public:
 			}
 			case E_BLOCK_BEACON:            AddBeaconEntity         (static_cast<cBeaconEntity *>         (a_Entity)); break;
 			case E_BLOCK_BED:               AddBedEntity            (static_cast<cBedEntity *>            (a_Entity)); break;
+			case E_BLOCK_CAMPFIRE:
+			{
+				if (mDataVersion >= JavaCampfireDataVersion)
+				{
+					mWriter.BeginCompound("");
+					AddBasicTileEntity(a_Entity, "Campfire");
+					// The original cooking inventory and timers are retained by the paletted writer.
+					mWriter.EndCompound();
+				}
+				break;
+			}
 			case E_BLOCK_BREWING_STAND:     AddBrewingstandEntity   (static_cast<cBrewingstandEntity *>   (a_Entity)); break;
 			case E_BLOCK_CHEST:             AddChestEntity          (static_cast<cChestEntity *>          (a_Entity), a_Entity->GetBlockType()); break;
 			case E_BLOCK_COMMAND_BLOCK:     AddCommandBlockEntity   (static_cast<cCommandBlockEntity *>   (a_Entity)); break;
@@ -530,17 +543,20 @@ public:
 			return;
 		}
 
+		const auto [Type, Damage] = LegacyBlockFallbacks::ForItem(cProtocol::Version::v1_12, a_Item.m_ItemType, a_Item.m_ItemDamage);
+		const bool IsFallback = Type != a_Item.m_ItemType;
 		mWriter.BeginCompound(a_CompoundName);
-		mWriter.AddShort("id",         static_cast<Int16>(a_Item.m_ItemType));
-		mWriter.AddShort("Damage",     static_cast<Int16>((a_Item.m_ItemDamage)));
+		mWriter.AddShort("id",         Type);
+		mWriter.AddShort("Damage",     Damage);
 		mWriter.AddByte ("Count",      static_cast<Byte>(a_Item.m_ItemCount));
 		if (a_Slot >= 0)
 		{
 			mWriter.AddByte ("Slot", static_cast<unsigned char>(a_Slot));
 		}
 
-		// Write the tag compound (for enchantment, firework, custom name and repair cost):
+		// Write the tag compound for item metadata:
 		if (
+			IsFallback || !a_Item.m_BeeHomeData.empty() ||
 			(!a_Item.m_Enchantments.IsEmpty()) ||
 			((a_Item.m_ItemType == E_ITEM_FIREWORK_ROCKET) || (a_Item.m_ItemType == E_ITEM_FIREWORK_STAR)) ||
 			(a_Item.m_RepairCost > 0) ||
@@ -549,6 +565,11 @@ public:
 		)
 		{
 			mWriter.BeginCompound("tag");
+				if (IsFallback)
+				{
+					LegacyBlockFallbacks::WriteItemIdentity(mWriter, a_Item);
+				}
+				BeeNBT::WriteItemData(mWriter, a_Item.m_BeeHomeData);
 				if (a_Item.m_RepairCost > 0)
 				{
 					mWriter.AddInt("RepairCost", a_Item.m_RepairCost);

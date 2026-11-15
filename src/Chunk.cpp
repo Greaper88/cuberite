@@ -9,6 +9,8 @@
 #include "Chunk.h"
 #include "BlockInfo.h"
 #include "BlockEntities/BeehiveEntity.h"
+#include "BlockEntities/CampfireEntity.h"
+#include "WorldStorage/BeeNBT.h"
 #include "World.h"
 #include "ClientHandle.h"
 #include "Server.h"
@@ -31,6 +33,18 @@
 #include "Blocks/ChunkInterface.h"
 
 #include "json/json.h"
+
+
+
+
+
+/** Flattened block IDs may only be used in chunks whose format can store them. */
+static bool CanStoreBlockInChunk(BLOCKTYPE a_Block, int a_DataVersion)
+{
+	return
+		((a_Block != E_BLOCK_BEEHIVE) || (a_DataVersion >= JavaBeeDataVersion)) &&
+		((a_Block != E_BLOCK_CAMPFIRE) || (a_DataVersion >= JavaCampfireDataVersion));
+}
 
 
 
@@ -542,7 +556,7 @@ void cChunk::WriteBlockArea(cBlockArea & a_Area, int a_MinBlockX, int a_MinBlock
 		for (const auto & keyPair: a_Area.GetBlockEntities())
 		{
 			auto & be = keyPair.second;
-			if ((be->GetBlockType() == E_BLOCK_BEEHIVE) && (m_DataVersion < JavaBeeDataVersion))
+			if (!CanStoreBlockInChunk(be->GetBlockType(), m_DataVersion))
 			{
 				continue;
 			}
@@ -1028,6 +1042,12 @@ cItems cChunk::PickupsFromBlock(Vector3i a_RelPos, const cEntity * a_Digger, con
 
 		if (BlockEntity != nullptr)
 		{
+			if ((BlockType == E_BLOCK_BEEHIVE) && !Pickups.empty() && cBlockHandler::ToolHasSilkTouch(a_Tool))
+			{
+				const auto & Hive = static_cast<const cBeehiveEntity &>(*BlockEntity);
+				Pickups.front().m_BeeHomeData = BeeNBT::SaveItemData(Hive);
+			}
+
 			auto BlockEntityPickups = BlockEntity->ConvertToPickups();
 			Pickups.insert(Pickups.end(), std::make_move_iterator(BlockEntityPickups.begin()), std::make_move_iterator(BlockEntityPickups.end()));
 		}
@@ -1314,14 +1334,13 @@ void cChunk::WakeUpSimulators(void)
 
 void cChunk::SetBlock(Vector3i a_RelPos, BLOCKTYPE a_BlockType, NIBBLETYPE a_BlockMeta)
 {
-	if (a_BlockType == E_BLOCK_BEEHIVE)
+	if (!CanStoreBlockInChunk(a_BlockType, m_DataVersion))
 	{
-		if (m_DataVersion < JavaBeeDataVersion)
-		{
-			return;
-		}
-
-		if ((GetBlock(a_RelPos) == E_BLOCK_BEEHIVE) && (GetBlockEntityRel(a_RelPos) != nullptr))
+		return;
+	}
+	if ((a_BlockType == E_BLOCK_BEEHIVE) || (a_BlockType == E_BLOCK_CAMPFIRE))
+	{
+		if ((GetBlock(a_RelPos) == a_BlockType) && (GetBlockEntityRel(a_RelPos) != nullptr))
 		{
 			// Retain the current block entity when changing the facing or variant.
 			if (GetMeta(a_RelPos) != a_BlockMeta)
@@ -1368,7 +1387,7 @@ void cChunk::FastSetBlock(int a_RelX, int a_RelY, int a_RelZ, BLOCKTYPE a_BlockT
 	ASSERT(cChunkDef::IsValidRelPos({ a_RelX, a_RelY, a_RelZ }));
 	ASSERT(IsValid());
 
-	if ((a_BlockType == E_BLOCK_BEEHIVE) && (m_DataVersion < JavaBeeDataVersion))
+	if (!CanStoreBlockInChunk(a_BlockType, m_DataVersion))
 	{
 		return;
 	}
@@ -1448,6 +1467,10 @@ void cChunk::FastSetBlock(int a_RelX, int a_RelY, int a_RelZ, BLOCKTYPE a_BlockT
 void cChunk::SetMeta(Vector3i a_RelPos, NIBBLETYPE a_Meta)
 {
 	const auto Block = GetBlock(a_RelPos);
+	if ((Block == E_BLOCK_CAMPFIRE) && (((GetMeta(a_RelPos) ^ a_Meta) & E_META_CAMPFIRE_LIT) != 0))
+	{
+		m_IsLightValid = false;
+	}
 	m_BlockData.SetMeta(a_RelPos, a_Meta);
 	MarkDirty();
 	m_PendingSendBlocks.emplace_back(m_PosX, m_PosZ, a_RelPos.x, a_RelPos.y, a_RelPos.z, Block, a_Meta);
@@ -1456,6 +1479,13 @@ void cChunk::SetMeta(Vector3i a_RelPos, NIBBLETYPE a_Meta)
 		if (auto * const Hive = static_cast<cBeehiveEntity *>(GetBlockEntityRel(a_RelPos)); Hive != nullptr)
 		{
 			Hive->SetBlockMeta(a_Meta);
+		}
+	}
+	else if (Block == E_BLOCK_CAMPFIRE)
+	{
+		if (auto * const Campfire = static_cast<cCampfireEntity *>(GetBlockEntityRel(a_RelPos)); Campfire != nullptr)
+		{
+			Campfire->SetBlockMeta(a_Meta);
 		}
 	}
 }

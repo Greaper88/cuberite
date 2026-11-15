@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "../../BlockEntities/BeehiveEntity.h"
+#include "../../BlockInfo.h"
 #include "../../Blocks/BlockComparator.h"
 
 
@@ -35,15 +37,28 @@ namespace RedstoneComparatorHandler
 		);
 	}
 
+	static PowerLevel GetBeeHomePower(cChunk & a_Chunk, Vector3i a_Position)
+	{
+		const auto * const Hive = static_cast<cBeehiveEntity *>(a_Chunk.GetBlockEntityRel(a_Position));
+		return (Hive != nullptr) ? static_cast<PowerLevel>(Hive->GetHoneyLevel()) : 0;
+	}
+
 	static unsigned char GetPowerLevel(cChunk & a_Chunk, Vector3i Position, BLOCKTYPE BlockType, NIBBLETYPE Meta)
 	{
 		UInt8 SignalStrength = 0;
 		auto RearCoordinate = cBlockComparatorHandler::GetRearCoordinate(Position, Meta & 0x3);
+		const auto RearOffset = RearCoordinate - Position;
 
 		auto RearChunk = a_Chunk.GetRelNeighborChunkAdjustCoords(RearCoordinate);
 		if ((RearChunk == nullptr) || !RearChunk->IsValid())
 		{
 			return SignalStrength;
+		}
+
+		const auto RearType = RearChunk->GetBlock(RearCoordinate);
+		if (RearType == E_BLOCK_BEEHIVE)
+		{
+			return GetBeeHomePower(*RearChunk, RearCoordinate);
 		}
 
 		RearChunk->DoWithBlockEntityAt(RearCoordinate, [&](cBlockEntity & a_BlockEntity)
@@ -69,14 +84,28 @@ namespace RedstoneComparatorHandler
 			return false;
 		});
 
-		const auto RearType = RearChunk->GetBlock(RearCoordinate);
-		return std::max(
+		const auto RearPower = std::max(
 			SignalStrength,
 			RedstoneHandler::GetPowerDeliveredToPosition(
 				*RearChunk, RearCoordinate, RearType,
 				cIncrementalRedstoneSimulatorChunkData::RebaseRelativePosition(a_Chunk, *RearChunk, Position), BlockType, false
 			)
 		);
+
+		// Comparators can read a bee home's analog output through one opaque full block.
+		if ((RearPower < 15) && !cBlockInfo::IsTransparent(RearType) && cBlockInfo::FullyOccupiesVoxel(RearType))
+		{
+			auto Source = RearCoordinate + RearOffset;
+			const auto SourceChunk = RearChunk->GetRelNeighborChunkAdjustCoords(Source);
+			if ((SourceChunk != nullptr) && SourceChunk->IsValid() && (SourceChunk->GetBlock(Source) == E_BLOCK_BEEHIVE))
+			{
+				// A fully powered conductor takes precedence over the analog signal behind it.
+				ForEachSourceCallback Input(a_Chunk, Position, BlockType);
+				Input(Position + RearOffset);
+				return (Input.Power == 15) ? Input.Power : GetBeeHomePower(*SourceChunk, Source);
+			}
+		}
+		return RearPower;
 	}
 
 	static void Update(cChunk & a_Chunk, cChunk & CurrentlyTicking, Vector3i a_Position, BLOCKTYPE a_BlockType, NIBBLETYPE a_Meta, const PowerLevel Power)

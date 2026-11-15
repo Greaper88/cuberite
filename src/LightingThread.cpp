@@ -36,7 +36,17 @@ class cReader :
 				for (size_t Z = 0; Z != cChunkDef::Width; ++Z)
 				{
 					auto InPtr = Section->data() + Z * cChunkDef::Width + OffsetY * cChunkDef::Width * cChunkDef::Width;
-					std::copy_n(InPtr, cChunkDef::Width, OutputRows + OutputIdx * cChunkDef::Width);
+					const auto Row = OutputRows + OutputIdx * cChunkDef::Width;
+					const auto End = std::copy_n(InPtr, cChunkDef::Width, Row);
+					for (auto Fire = std::find(Row, End, E_BLOCK_CAMPFIRE); Fire != End; Fire = std::find(Fire + 1, End, E_BLOCK_CAMPFIRE))
+					{
+						const Vector3i Pos(static_cast<int>(Fire - Row), static_cast<int>(i * cChunkDef::SectionHeight + OffsetY), static_cast<int>(Z));
+						if ((a_BlockData.GetMeta(Pos) & E_META_CAMPFIRE_LIT) == 0)
+						{
+							// An extinguished campfire has the same light opacity as air.
+							*Fire = E_BLOCK_AIR;
+						}
+					}
 
 					OutputIdx += 3;
 				}

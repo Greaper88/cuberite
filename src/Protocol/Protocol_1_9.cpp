@@ -28,6 +28,7 @@ Implements the 1.9 protocol classes:
 #include "../JsonUtils.h"
 
 #include "../WorldStorage/FastNBT.h"
+#include "../WorldStorage/BeeNBT.h"
 
 #include "../Entities/EnderCrystal.h"
 #include "../Entities/ExpOrb.h"
@@ -1307,7 +1308,7 @@ void cProtocol_1_9_0::ParseItemMetadata(cItem & a_Item, const ContiguousByteBuff
 	if (!NBT.IsValid())
 	{
 		AString HexDump;
-		CreateHexDump(HexDump, a_Metadata.data(), std::max<size_t>(a_Metadata.size(), 1024), 16);
+		CreateHexDump(HexDump, a_Metadata.data(), std::min<size_t>(a_Metadata.size(), 1024), 16);
 		LOGWARNING("Cannot parse NBT item metadata: %s at (%zu / %zu bytes)\n%s",
 			NBT.GetErrorCode().message().c_str(), NBT.GetErrorPos(), a_Metadata.size(), HexDump.c_str()
 		);
@@ -1315,6 +1316,10 @@ void cProtocol_1_9_0::ParseItemMetadata(cItem & a_Item, const ContiguousByteBuff
 	}
 
 	LegacyBlockFallbacks::RestoreItemIdentity(GetProtocolVersion(), a_Item, NBT);
+	if (a_Item.IsBeeHome())
+	{
+		BeeNBT::ReadItemData(a_Item.m_BeeHomeData, NBT, NBT.GetRoot());
+	}
 
 	// Load enchantments and custom display names from the NBT data:
 	for (int tag = NBT.GetFirstChild(NBT.GetRoot()); tag >= 0; tag = NBT.GetNextSibling(tag))
@@ -1810,7 +1815,7 @@ void cProtocol_1_9_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 		a_Pkt.WriteBEInt16(ItemDamage);
 	}
 
-	if (!IsFallback && a_Item.m_Enchantments.IsEmpty() && a_Item.IsBothNameAndLoreEmpty() && (ItemType != E_ITEM_FIREWORK_ROCKET) && (ItemType != E_ITEM_FIREWORK_STAR) && !a_Item.m_ItemColor.IsValid() && (ItemType != E_ITEM_POTION) && (ItemType != E_ITEM_SPAWN_EGG))
+	if (!IsFallback && a_Item.m_BeeHomeData.empty() && a_Item.m_Enchantments.IsEmpty() && a_Item.IsBothNameAndLoreEmpty() && (ItemType != E_ITEM_FIREWORK_ROCKET) && (ItemType != E_ITEM_FIREWORK_STAR) && !a_Item.m_ItemColor.IsValid() && (ItemType != E_ITEM_POTION) && (ItemType != E_ITEM_SPAWN_EGG))
 	{
 		a_Pkt.WriteBEInt8(0);
 		return;
@@ -1823,6 +1828,7 @@ void cProtocol_1_9_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 	{
 		LegacyBlockFallbacks::WriteItemIdentity(Writer, a_Item);
 	}
+	WriteBeeHomeItemData(Writer, a_Item);
 	if (a_Item.m_RepairCost != 0)
 	{
 		Writer.AddInt("RepairCost", a_Item.m_RepairCost);

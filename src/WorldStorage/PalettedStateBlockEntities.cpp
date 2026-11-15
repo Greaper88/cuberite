@@ -4,6 +4,7 @@
 #include "../BlockEntities/BannerEntity.h"
 #include "../BlockEntities/BedEntity.h"
 #include "../BlockEntities/BeehiveEntity.h"
+#include "../BlockEntities/CampfireEntity.h"
 #include "WorldFormat.h"
 #include "../BlockEntities/FlowerPotEntity.h"
 #include "../BlockEntities/MobHeadEntity.h"
@@ -139,6 +140,12 @@ OwnedBlockEntity PalettedStateBlockEntities::FromState(
 		ApplyState(*Entity, a_State);
 		return Entity;
 	}
+	if ((a_Block == E_BLOCK_CAMPFIRE) && (a_State.Name == "minecraft:campfire"))
+	{
+		auto Entity = std::make_unique<cCampfireEntity>(a_Block, a_Meta, a_Pos, a_World);
+		ApplyState(*Entity, a_State);
+		return Entity;
+	}
 	if (a_Block != E_BLOCK_FLOWER_POT)
 	{
 		return nullptr;
@@ -172,6 +179,14 @@ void PalettedStateBlockEntities::ApplyState(cBlockEntity & a_Entity, const cName
 		case E_BLOCK_BEEHIVE:
 		{
 			static_cast<cBeehiveEntity &>(a_Entity).SetHoneyLevel(StateNumber(a_State, "honey_level", 5).value_or(0));
+			break;
+		}
+		case E_BLOCK_CAMPFIRE:
+		{
+			const auto Waterlogged = a_State.Properties.find("waterlogged");
+			static_cast<cCampfireEntity &>(a_Entity).SetWaterlogged(
+				(Waterlogged != a_State.Properties.end()) && (Waterlogged->second == "true")
+			);
 			break;
 		}
 		case E_BLOCK_BED:
@@ -236,6 +251,14 @@ std::optional<cNamedBlockState> PalettedStateBlockEntities::ToState(
 			auto State = BaseState(a_Entity, a_Original, a_DataVersion);
 			State.Properties.insert_or_assign("honey_level", std::to_string(static_cast<cBeehiveEntity &>(a_Entity).GetHoneyLevel()));
 			return State;
+		}
+		case E_BLOCK_CAMPFIRE:
+		{
+			if (a_DataVersion < JavaCampfireDataVersion)
+			{
+				return std::nullopt;
+			}
+			return static_cast<cCampfireEntity &>(a_Entity).GetBlockState();
 		}
 		case E_BLOCK_NOTE_BLOCK:
 		{

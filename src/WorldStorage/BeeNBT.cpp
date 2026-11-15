@@ -64,6 +64,101 @@ namespace
 			a_Writer.EndCompound();
 		}
 	}
+
+	constexpr size_t MaxItemDataSize = 2 * 1024 * 1024;
+
+	struct cBeeHomeItemTags
+	{
+		int Entity;
+		int State;
+		int HoneyLevel = 0;
+	};
+
+	std::optional<cBeeHomeItemTags> ReadItemTags(const cParsedNBT & a_NBT, int a_Tag)
+	{
+		if (a_Tag < 0)
+		{
+			return cBeeHomeItemTags{-1, -1};
+		}
+		if (!a_NBT.IsValid() || (a_NBT.GetType(a_Tag) != TAG_Compound))
+		{
+			return std::nullopt;
+		}
+
+		cBeeHomeItemTags Tags
+		{
+			a_NBT.FindChildByName(a_Tag, "BlockEntityTag"),
+			a_NBT.FindChildByName(a_Tag, "BlockStateTag"),
+		};
+		size_t Size = 0;
+		for (const auto Tag : {Tags.Entity, Tags.State})
+		{
+			if (Tag < 0)
+			{
+				continue;
+			}
+			if (a_NBT.GetType(Tag) != TAG_Compound)
+			{
+				return std::nullopt;
+			}
+			Size += a_NBT.GetTagPayload(Tag).size();
+		}
+		if (Size > MaxItemDataSize)
+		{
+			return std::nullopt;
+		}
+
+		if (Tags.State >= 0)
+		{
+			const auto Honey = a_NBT.FindChildByName(Tags.State, "honey_level");
+			if (Honey >= 0)
+			{
+				if (a_NBT.GetType(Honey) != TAG_String)
+				{
+					return std::nullopt;
+				}
+				const auto Level = a_NBT.GetStringView(Honey);
+				if ((Level.size() != 1) || (Level[0] < '0') || (Level[0] > '5'))
+				{
+					return std::nullopt;
+				}
+				Tags.HoneyLevel = Level[0] - '0';
+			}
+		}
+
+		const auto Bees = (Tags.Entity < 0) ? -1 : a_NBT.FindChildByName(Tags.Entity, "Bees");
+		if (Bees >= 0)
+		{
+			if (a_NBT.GetType(Bees) != TAG_List)
+			{
+				return std::nullopt;
+			}
+			for (auto Occupant = a_NBT.GetFirstChild(Bees); Occupant >= 0; Occupant = a_NBT.GetNextSibling(Occupant))
+			{
+				if (a_NBT.GetType(Occupant) != TAG_Compound)
+				{
+					return std::nullopt;
+				}
+				const auto Entity = a_NBT.FindChildByName(Occupant, "EntityData");
+				if ((Entity < 0) || (a_NBT.GetType(Entity) != TAG_Compound))
+				{
+					return std::nullopt;
+				}
+			}
+		}
+		return Tags;
+	}
+
+	void WriteItemTags(cFastNBTWriter & a_Writer, const cParsedNBT & a_NBT, const cBeeHomeItemTags & a_Tags)
+	{
+		for (const auto Tag : {a_Tags.Entity, a_Tags.State})
+		{
+			if (Tag >= 0)
+			{
+				a_Writer.CopyTag(a_NBT, Tag);
+			}
+		}
+	}
 }
 
 
@@ -172,4 +267,98 @@ void BeeNBT::WriteHive(cFastNBTWriter & a_Writer, const cBeehiveEntity & a_Hive)
 		a_Writer.EndCompound();
 	}
 	a_Writer.EndList();
+}
+
+
+
+
+
+bool BeeNBT::ReadItemData(ContiguousByteBuffer & a_Data, const cParsedNBT & a_NBT, int a_Tag)
+{
+	a_Data.clear();
+	const auto Tags = ReadItemTags(a_NBT, a_Tag);
+	if (!Tags.has_value())
+	{
+		return false;
+	}
+	if ((Tags->Entity < 0) && (Tags->State < 0))
+	{
+		return true;
+	}
+
+	cFastNBTWriter Writer;
+	WriteItemTags(Writer, a_NBT, *Tags);
+	Writer.Finish();
+	if (Writer.GetResult().size() > MaxItemDataSize)
+	{
+		return false;
+	}
+	a_Data = Writer.GetResult();
+	return true;
+}
+
+
+
+
+
+void BeeNBT::WriteItemData(cFastNBTWriter & a_Writer, ContiguousByteBufferView a_Data)
+{
+	if (a_Data.empty())
+	{
+		return;
+	}
+	const cParsedNBT NBT(a_Data);
+	if (const auto Tags = ReadItemTags(NBT, NBT.GetRoot()); Tags.has_value())
+	{
+		WriteItemTags(a_Writer, NBT, *Tags);
+	}
+}
+
+
+
+
+
+ContiguousByteBuffer BeeNBT::SaveItemData(const cBeehiveEntity & a_Hive)
+{
+	cFastNBTWriter Writer;
+	Writer.BeginCompound("BlockEntityTag");
+	WriteHive(Writer, a_Hive);
+	Writer.EndCompound();
+	Writer.BeginCompound("BlockStateTag");
+	Writer.AddString("honey_level", std::to_string(a_Hive.GetHoneyLevel()));
+	Writer.EndCompound();
+	Writer.Finish();
+	if (Writer.GetResult().size() > MaxItemDataSize)
+	{
+		return {};
+	}
+	return ContiguousByteBuffer(Writer.GetResult());
+}
+
+
+
+
+
+bool BeeNBT::LoadItemData(cBeehiveEntity & a_Hive, ContiguousByteBufferView a_Data)
+{
+	if (a_Data.empty())
+	{
+		return true;
+	}
+	if (a_Data.size() > MaxItemDataSize)
+	{
+		return false;
+	}
+	const cParsedNBT NBT(a_Data);
+	const auto Tags = ReadItemTags(NBT, NBT.GetRoot());
+	if (!Tags.has_value())
+	{
+		return false;
+	}
+	if (Tags->Entity >= 0)
+	{
+		ReadHive(a_Hive, NBT, Tags->Entity);
+	}
+	a_Hive.SetHoneyLevel(Tags->HoneyLevel);
+	return true;
 }

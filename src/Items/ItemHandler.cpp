@@ -20,6 +20,7 @@
 #include "ItemBucket.h"
 #include "ItemButton.h"
 #include "ItemBeehive.h"
+#include "ItemCampfire.h"
 #include "ItemChest.h"
 #include "ItemChorusFruit.h"
 #include "ItemCloth.h"
@@ -174,6 +175,7 @@ namespace
 	constexpr cItemArmorHandler             ItemChainHelmetHandler                     (E_ITEM_CHAIN_HELMET);
 	constexpr cItemArmorHandler             ItemChainLeggingsHandler                   (E_ITEM_CHAIN_LEGGINGS);
 	constexpr cItemBeehiveHandler           ItemBeehiveHandler                        (E_BLOCK_BEEHIVE);
+	constexpr cItemCampfireHandler          ItemCampfireHandler                       (E_BLOCK_CAMPFIRE);
 	constexpr cItemBeehiveHandler           ItemBeeNestHandler                        (E_ITEM_BEE_NEST);
 	constexpr cItemSpawnEggHandler          ItemBeeSpawnEggHandler                    (E_ITEM_BEE_SPAWN_EGG);
 	constexpr cItemHoneyBottleHandler       ItemHoneyBottleHandler                    (E_ITEM_HONEY_BOTTLE);
@@ -616,6 +618,7 @@ const cItemHandler & cItemHandler::For(int a_ItemType)
 		case E_BLOCK_CAULDRON:                       return ItemCauldronBlockHandler;
 		case E_BLOCK_CHAIN_COMMAND_BLOCK:            return ItemChainCommandBlockHandler;
 		case E_BLOCK_BEEHIVE:                        return ItemBeehiveHandler;
+		case E_BLOCK_CAMPFIRE:                       return ItemCampfireHandler;
 		case E_BLOCK_CHEST:                          return ItemChestHandler;
 		case E_BLOCK_CHORUS_FLOWER:                  return ItemChorusFlowerHandler;
 		case E_BLOCK_CHORUS_PLANT:                   return ItemChorusPlantHandler;

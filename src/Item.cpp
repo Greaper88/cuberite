@@ -6,6 +6,8 @@
 #include "ItemGrid.h"
 #include "json/json.h"
 #include "Items/ItemHandler.h"
+#include "WorldStorage/BeeNBT.h"
+#include "WorldStorage/FastNBT.h"
 
 #include "FastRandom.h"
 
@@ -68,6 +70,7 @@ void cItem::Empty()
 	m_Enchantments.Clear();
 	m_CustomName = "";
 	m_LoreTable.clear();
+	m_BeeHomeData.clear();
 	m_RepairCost = 0;
 	m_FireworkItem.EmptyData();
 	m_ItemColor.Clear();
@@ -82,6 +85,7 @@ void cItem::Clear()
 	m_ItemType = E_ITEM_EMPTY;
 	m_ItemCount = 0;
 	m_ItemDamage = 0;
+	m_BeeHomeData.clear();
 	m_RepairCost = 0;
 	m_ItemColor.Clear();
 }
@@ -265,6 +269,10 @@ void cItem::GetJson(Json::Value & a_OutValue) const
 			a_OutValue["FadeColours"] = m_FireworkItem.FadeColoursToString(m_FireworkItem);
 		}
 
+		if (!m_BeeHomeData.empty())
+		{
+			a_OutValue["BeeHomeData"] = Base64Encode({reinterpret_cast<const char *>(m_BeeHomeData.data()), m_BeeHomeData.size()});
+		}
 		a_OutValue["RepairCost"] = m_RepairCost;
 	}
 }
@@ -275,6 +283,7 @@ void cItem::GetJson(Json::Value & a_OutValue) const
 
 void cItem::FromJson(const Json::Value & a_Value)
 {
+	m_BeeHomeData.clear();
 	m_ItemType = static_cast<ENUM_ITEM_TYPE>(a_Value.get("ID", -1).asInt());
 	if (m_ItemType > 0)
 	{
@@ -311,6 +320,16 @@ void cItem::FromJson(const Json::Value & a_Value)
 			m_FireworkItem.FadeColoursFromString(a_Value.get("FadeColours", "").asString(), m_FireworkItem);
 		}
 
+		const auto & BeeHome = a_Value["BeeHomeData"];
+		if (IsBeeHome() && BeeHome.isString())
+		{
+			const auto Decoded = Base64Decode(BeeHome.asString());
+			const cParsedNBT NBT({reinterpret_cast<const std::byte *>(Decoded.data()), Decoded.size()});
+			if (NBT.IsValid())
+			{
+				BeeNBT::ReadItemData(m_BeeHomeData, NBT, NBT.GetRoot());
+			}
+		}
 		m_RepairCost = a_Value.get("RepairCost", 0).asInt();
 	}
 }

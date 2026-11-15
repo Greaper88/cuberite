@@ -17,6 +17,7 @@
 #include "BlockCarpet.h"
 #include "BlockCauldron.h"
 #include "BlockBeehive.h"
+#include "BlockCampfire.h"
 #include "BlockChest.h"
 #include "BlockCloth.h"
 #include "BlockCobWeb.h"
@@ -234,6 +235,7 @@ namespace
 	constexpr cBlockCauldronHandler           BlockCauldronHandler              (E_BLOCK_CAULDRON);
 	constexpr cBlockCommandBlockHandler       BlockChainCommandBlockHandler     (E_BLOCK_CHAIN_COMMAND_BLOCK);
 	constexpr cBlockBeehiveHandler            BlockBeehiveHandler               (E_BLOCK_BEEHIVE);
+	constexpr cBlockCampfireHandler           BlockCampfireHandler              (E_BLOCK_CAMPFIRE);
 	constexpr cBlockChestHandler              BlockChestHandler                 (E_BLOCK_CHEST);
 	constexpr cDefaultBlockHandler            BlockChorusFlowerHandler          (E_BLOCK_CHORUS_FLOWER);
 	constexpr cDefaultBlockHandler            BlockChorusPlantHandler           (E_BLOCK_CHORUS_PLANT);
@@ -895,7 +897,7 @@ const cBlockHandler & cBlockHandler::For(BLOCKTYPE a_BlockType)
 		case E_BLOCK_YELLOW_SHULKER_BOX:            return BlockYellowShulkerBoxHandler;
 
 		// TODO: these will be removed in 1.13+ migration
-		case E_BLOCK_UNFINISHED: return BlockAirHandler;
+		case E_BLOCK_CAMPFIRE:                      return BlockCampfireHandler;
 	}
 	UNREACHABLE("Getting handler for unexpected block type");
 }

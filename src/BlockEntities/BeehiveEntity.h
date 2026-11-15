@@ -34,6 +34,7 @@ public:
 	void SetHoneyLevel(int a_Level);
 
 	const std::vector<Occupant> & GetOccupants() const { return m_Occupants; }
+	std::vector<Occupant> TakeOccupants() { return std::exchange(m_Occupants, {}); }
 	void SetOccupants(std::vector<Occupant> a_Occupants);
 
 	/** Stores the bee and removes it from the active world if it can enter. */

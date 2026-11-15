@@ -3,9 +3,11 @@
 #include "BeeNBT.h"
 #include "WorldFormat.h"
 #include "../BlockEntities/BeehiveEntity.h"
+#include "../BlockEntities/CampfireEntity.h"
 #include "../Mobs/Bee.h"
 #include "NBTChunkSerializer.h"
 #include "PalettedItemNBT.h"
+#include "Protocol/LegacyBlockFallbacks.h"
 #include "Protocol/Palettes/NamedBlockPalette.h"
 #include "EnchantmentSerializer.h"
 #include "NamespaceSerializer.h"
@@ -711,6 +713,44 @@ OwnedBlockEntity cWSSAnvil::LoadBlockEntityFromNBT(const cParsedNBT & a_NBT, int
 		}
 		case E_BLOCK_BEACON:             return LoadBeaconFromNBT          (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);
 		case E_BLOCK_BED:                return LoadBedFromNBT             (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);
+		case E_BLOCK_CAMPFIRE:
+		{
+			if (
+				(m_EntityDataVersion < JavaCampfireDataVersion) ||
+				!CheckBlockEntityType(a_NBT, a_Tag, {"minecraft:campfire"}, a_Pos)
+			)
+			{
+				return nullptr;
+			}
+			auto Campfire = std::make_unique<cCampfireEntity>(a_BlockType, a_BlockMeta, a_Pos, nullptr);
+			const auto Items = a_NBT.FindChildByName(a_Tag, "Items");
+			if (Items < 0)
+			{
+				return Campfire;
+			}
+			if (
+				(a_NBT.GetType(Items) != TAG_List) ||
+				((a_NBT.GetChildrenType(Items) != TAG_Compound) && (a_NBT.GetChildrenType(Items) != TAG_End))
+			)
+			{
+				return nullptr;
+			}
+			cItems Imported;
+			for (int Child = a_NBT.GetFirstChild(Items); Child >= 0; Child = a_NBT.GetNextSibling(Child))
+			{
+				cItem Item;
+				if (!LoadItemFromNBT(Item, a_NBT, Child))
+				{
+					return nullptr;
+				}
+				if (!Item.IsEmpty())
+				{
+					Imported.push_back(std::move(Item));
+				}
+			}
+			Campfire->SetImportedItems(std::move(Imported));
+			return Campfire;
+		}
 		case E_BLOCK_BREWING_STAND:      return LoadBrewingstandFromNBT    (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);
 		case E_BLOCK_CHEST:              return LoadChestFromNBT           (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);
 		case E_BLOCK_COMMAND_BLOCK:      return LoadCommandBlockFromNBT    (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);
@@ -756,6 +796,7 @@ bool cWSSAnvil::LoadItemFromNBT(cItem & a_Item, const cParsedNBT & a_NBT, int a_
 		return PalettedItemNBT::Read(a_Item, a_NBT, a_TagIdx, m_EntityDataVersion);
 	}
 
+	a_Item.m_BeeHomeData.clear();
 	int Type = a_NBT.FindChildByName(a_TagIdx, "id");
 	if (Type <= 0)
 	{
@@ -803,6 +844,12 @@ bool cWSSAnvil::LoadItemFromNBT(cItem & a_Item, const cParsedNBT & a_NBT, int a_
 	{
 		// No extra data
 		return true;
+	}
+
+	LegacyBlockFallbacks::RestoreItemIdentity(cProtocol::Version::v1_12, a_Item, a_NBT, TagTag);
+	if (a_Item.IsBeeHome())
+	{
+		BeeNBT::ReadItemData(a_Item.m_BeeHomeData, a_NBT, TagTag);
 	}
 
 	// Load repair cost:

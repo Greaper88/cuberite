@@ -26,6 +26,7 @@ Implements the 1.8 protocol classes:
 #include "../JsonUtils.h"
 
 #include "../WorldStorage/FastNBT.h"
+#include "../WorldStorage/BeeNBT.h"
 #include "../WorldStorage/EnchantmentSerializer.h"
 
 #include "../Entities/ExpOrb.h"
@@ -1718,15 +1719,29 @@ void cProtocol_1_8_0::SendWholeInventory(const cWindow & a_Window)
 {
 	ASSERT(m_State == 3);  // In game mode?
 
+	cItems Slots;
+	a_Window.GetSlots(*(m_Client->GetPlayer()), Slots);
+	size_t BeeHomeBytes = 0;
+	for (const auto & Slot : Slots)
+	{
+		BeeHomeBytes += Slot.m_BeeHomeData.size();
+	}
+	if (BeeHomeBytes > MaxBeeHomeWireData)
+	{
+		for (size_t Slot = 0; Slot < Slots.size(); ++Slot)
+		{
+			SendInventorySlot(a_Window.GetWindowID(), static_cast<short>(Slot), Slots[Slot]);
+		}
+		return;
+	}
+
 	cPacketizer Pkt(*this, pktWindowItems);
 	Pkt.WriteBEUInt8(static_cast<UInt8>(a_Window.GetWindowID()));
 	Pkt.WriteBEInt16(static_cast<Int16>(a_Window.GetNumSlots()));
-	cItems Slots;
-	a_Window.GetSlots(*(m_Client->GetPlayer()), Slots);
-	for (cItems::const_iterator itr = Slots.begin(), end = Slots.end(); itr != end; ++itr)
+	for (const auto & Slot : Slots)
 	{
-		WriteItem(Pkt, *itr);
-	}  // for itr - Slots[]
+		WriteItem(Pkt, Slot);
+	}
 }
 
 
@@ -2927,7 +2942,7 @@ void cProtocol_1_8_0::ParseItemMetadata(cItem & a_Item, const ContiguousByteBuff
 	if (!NBT.IsValid())
 	{
 		AString HexDump;
-		CreateHexDump(HexDump, a_Metadata.data(), std::max<size_t>(a_Metadata.size(), 1024), 16);
+		CreateHexDump(HexDump, a_Metadata.data(), std::min<size_t>(a_Metadata.size(), 1024), 16);
 		LOGWARNING("Cannot parse NBT item metadata: %s at (%zu / %zu bytes)\n%s",
 			NBT.GetErrorCode().message().c_str(), NBT.GetErrorPos(), a_Metadata.size(), HexDump.c_str()
 		);
@@ -2935,6 +2950,10 @@ void cProtocol_1_8_0::ParseItemMetadata(cItem & a_Item, const ContiguousByteBuff
 	}
 
 	LegacyBlockFallbacks::RestoreItemIdentity(GetProtocolVersion(), a_Item, NBT);
+	if (a_Item.IsBeeHome())
+	{
+		BeeNBT::ReadItemData(a_Item.m_BeeHomeData, NBT, NBT.GetRoot());
+	}
 
 	// Load enchantments and custom display names from the NBT data:
 	for (int tag = NBT.GetFirstChild(NBT.GetRoot()); tag >= 0; tag = NBT.GetNextSibling(tag))
@@ -3007,6 +3026,7 @@ bool cProtocol_1_8_0::ReadItem(cByteBuffer & a_ByteBuffer, cItem & a_Item, size_
 		return true;
 	}
 	a_Item.m_ItemType = ItemType;
+	a_Item.m_BeeHomeData.clear();
 
 	HANDLE_PACKET_READ(a_ByteBuffer, ReadBEInt8,  Int8,  ItemCount);
 	HANDLE_PACKET_READ(a_ByteBuffer, ReadBEInt16, Int16, ItemDamage);
@@ -3400,6 +3420,18 @@ void cProtocol_1_8_0::WriteEntityProperties(cPacketizer & a_Pkt, const cEntity &
 
 
 
+void cProtocol_1_8_0::WriteBeeHomeItemData(cFastNBTWriter & a_Writer, const cItem & a_Item)
+{
+	if (a_Item.m_BeeHomeData.size() <= MaxBeeHomeWireData)
+	{
+		BeeNBT::WriteItemData(a_Writer, a_Item.m_BeeHomeData);
+	}
+}
+
+
+
+
+
 void cProtocol_1_8_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 {
 	ASSERT(a_Item.m_ItemType >= -1);  // Check validity of packets in debug runtime
@@ -3415,7 +3447,7 @@ void cProtocol_1_8_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 	a_Pkt.WriteBEInt8(a_Item.m_ItemCount);
 	a_Pkt.WriteBEInt16(ItemDamage);
 
-	if (!IsFallback && a_Item.m_Enchantments.IsEmpty() && a_Item.IsBothNameAndLoreEmpty() && (a_Item.m_ItemType != E_ITEM_FIREWORK_ROCKET) && (a_Item.m_ItemType != E_ITEM_FIREWORK_STAR) && !a_Item.m_ItemColor.IsValid())
+	if (!IsFallback && a_Item.m_BeeHomeData.empty() && a_Item.m_Enchantments.IsEmpty() && a_Item.IsBothNameAndLoreEmpty() && (a_Item.m_ItemType != E_ITEM_FIREWORK_ROCKET) && (a_Item.m_ItemType != E_ITEM_FIREWORK_STAR) && !a_Item.m_ItemColor.IsValid())
 	{
 		a_Pkt.WriteBEInt8(0);
 		return;
@@ -3428,6 +3460,7 @@ void cProtocol_1_8_0::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 	{
 		LegacyBlockFallbacks::WriteItemIdentity(Writer, a_Item);
 	}
+	WriteBeeHomeItemData(Writer, a_Item);
 	if (a_Item.m_RepairCost != 0)
 	{
 		Writer.AddInt("RepairCost", a_Item.m_RepairCost);

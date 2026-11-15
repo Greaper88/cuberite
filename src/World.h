@@ -705,6 +705,9 @@ public:
 	/** Whether the loaded chunk can persist bees and bee homes in its original Java format. */
 	bool SupportsBees() const;
 	bool SupportsBeesAt(Vector3i a_Position) const;
+
+	/** Whether the loaded chunk can store a Java campfire. */
+	bool SupportsCampfiresAt(Vector3i a_Position) const;
 	bool UpdateNamedBlock(Vector3i a_Position, BLOCKTYPE a_ExpectedType, cNamedBlockState a_State);
 
 	// tolua_begin

@@ -5,6 +5,7 @@ target_sources(
 	BeaconEntity.cpp
 	BedEntity.cpp
 	BeehiveEntity.cpp
+	CampfireEntity.cpp
 	BlockEntity.cpp
 	BlockEntityWithItems.cpp
 	BrewingstandEntity.cpp
@@ -29,6 +30,7 @@ target_sources(
 	BeaconEntity.h
 	BedEntity.h
 	BeehiveEntity.h
+	CampfireEntity.h
 	BlockEntity.h
 	BlockEntityWithItems.h
 	BrewingstandEntity.h

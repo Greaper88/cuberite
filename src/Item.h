@@ -81,6 +81,7 @@ public:
 			(m_Enchantments == a_Item.m_Enchantments) &&
 			(m_CustomName == a_Item.m_CustomName) &&
 			(m_LoreTable == a_Item.m_LoreTable) &&
+			(m_BeeHomeData == a_Item.m_BeeHomeData) &&
 			m_FireworkItem.IsEqualTo(a_Item.m_FireworkItem)
 		);
 	}
@@ -126,6 +127,11 @@ public:
 	/** Returns the cItemHandler responsible for this item type */
 	const cItemHandler & GetHandler(void) const;
 
+	bool IsBeeHome() const
+	{
+		return (m_ItemType == E_BLOCK_BEEHIVE) || (m_ItemType == E_ITEM_BEE_NEST);
+	}
+
 	/** Saves the item data into JSON representation */
 	void GetJson(Json::Value & a_OutValue) const;
 
@@ -169,6 +175,9 @@ public:
 	// tolua_end
 
 	AStringVector  m_LoreTable;  // Exported in ManualBindings.cpp
+
+	/** Vanilla NBT holding the occupants and honey level of a carried bee home. */
+	ContiguousByteBuffer m_BeeHomeData;
 
 	/**
 	Compares two items for the same type or category. Type of item is defined

@@ -2169,12 +2169,65 @@ bool cWorld::DigBlock(Vector3i a_BlockPos, const cEntity * a_Digger)
 
 bool cWorld::DropBlockAsPickups(Vector3i a_BlockPos, const cEntity * a_Digger, const cItem * a_Tool)
 {
-	auto pickups = PickupsFromBlock(a_BlockPos, a_Digger, a_Tool);
-	if (!DigBlock(a_BlockPos, a_Digger))
+	cItems Pickups;
 	{
-		return false;
+		// Keep the block and occupants stable during a Silk Touch transfer.
+		std::optional<cLock> Lock;
+		if (cBlockHandler::ToolHasSilkTouch(a_Tool))
+		{
+			Lock.emplace(*this);
+		}
+		const bool CapturingHive = Lock.has_value() && (GetBlock(a_BlockPos) == E_BLOCK_BEEHIVE);
+		Pickups = PickupsFromBlock(a_BlockPos, a_Digger, a_Tool);
+
+		cBeehiveEntity * CapturedHive = nullptr;
+		std::vector<cBeehiveEntity::Occupant> CapturedOccupants;
+		if (CapturingHive)
+		{
+			// The drop hook may remove the item or replace the block. Only transfer occupants
+			// when a drop still carries this hive's current contents.
+			DoWithBlockEntityAt(a_BlockPos, [&](cBlockEntity & a_Entity)
+			{
+				if (a_Entity.GetBlockType() != E_BLOCK_BEEHIVE)
+				{
+					return false;
+				}
+				auto & Hive = static_cast<cBeehiveEntity &>(a_Entity);
+				const auto ItemType = Hive.IsNest() ? static_cast<short>(E_ITEM_BEE_NEST) : static_cast<short>(E_BLOCK_BEEHIVE);
+				const auto Data = BeeNBT::SaveItemData(Hive);
+				const auto Drop = std::find_if(Pickups.begin(), Pickups.end(), [&](const cItem & a_Item)
+				{
+					return (a_Item.m_ItemType == ItemType) && !a_Item.IsEmpty() && !Data.empty() && (a_Item.m_BeeHomeData == Data);
+				});
+				if (Drop == Pickups.end())
+				{
+					return false;
+				}
+				CapturedHive = &Hive;
+				CapturedOccupants = Hive.TakeOccupants();
+				return true;
+			});
+
+			if (CapturedHive == nullptr)
+			{
+				for (auto & Pickup : Pickups)
+				{
+					Pickup.m_BeeHomeData.clear();
+				}
+			}
+		}
+
+		if (!DigBlock(a_BlockPos, a_Digger))
+		{
+			// A failed dig has not removed the entity and the chunk lock is still held.
+			if (CapturedHive != nullptr)
+			{
+				CapturedHive->SetOccupants(std::move(CapturedOccupants));
+			}
+			return false;
+		}
 	}
-	SpawnItemPickups(pickups, Vector3d(0.5, 0.5, 0.5) + a_BlockPos, 10);
+	SpawnItemPickups(Pickups, Vector3d(0.5, 0.5, 0.5) + a_BlockPos, 10);
 	return true;
 }
 
@@ -2233,6 +2286,18 @@ bool cWorld::SupportsBeesAt(Vector3i a_Position) const
 		(cChunkDef::IsValidHeight(a_Position)) &&
 		SupportsBees() &&
 		(m_ChunkMap.GetChunkDataVersion(a_Position) >= JavaBeeDataVersion);
+}
+
+
+
+
+
+bool cWorld::SupportsCampfiresAt(Vector3i a_Position) const
+{
+	return
+		cChunkDef::IsValidHeight(a_Position) &&
+		(m_JavaDataVersion >= JavaCampfireDataVersion) &&
+		(m_ChunkMap.GetChunkDataVersion(a_Position) >= JavaCampfireDataVersion);
 }
 
 

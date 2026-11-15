@@ -27,6 +27,12 @@ namespace PaletteUpgrade
 			return FromBeeHome(Meta, 0);
 		}
 
+		if (Block == E_BLOCK_CAMPFIRE)
+		{
+			static constexpr eBlockFace Facings[] = { BLOCK_FACE_ZM, BLOCK_FACE_ZP, BLOCK_FACE_XM, BLOCK_FACE_XP };
+			return Campfire::Campfire(Facings[Meta & 3], (Meta & E_META_CAMPFIRE_LIT) != 0, (Meta & E_META_CAMPFIRE_SIGNAL) != 0);
+		}
+
 		switch ((Block << 4) | Meta)
 		{
 			case (0 << 4) | 0: return Air::Air();
@@ -1728,6 +1734,7 @@ namespace PaletteUpgrade
 		switch ((Item << 16) | Damage)
 		{
 			case (E_BLOCK_BEEHIVE << 16) | 0:       return Item::Beehive;
+			case (E_BLOCK_CAMPFIRE << 16) | 0:      return Item::Campfire;
 			case (E_ITEM_BEE_NEST << 16) | 0:       return Item::BeeNest;
 			case (E_ITEM_BEE_SPAWN_EGG << 16) | 0:  return Item::BeeSpawnEgg;
 			case (E_ITEM_HONEY_BOTTLE << 16) | 0:   return Item::HoneyBottle;
@@ -2544,6 +2551,7 @@ namespace PaletteUpgrade
 		switch (ID)
 		{
 			case Item::Beehive:      return { E_BLOCK_BEEHIVE, 0 };
+			case Item::Campfire:     return { E_BLOCK_CAMPFIRE, 0 };
 			case Item::BeeNest:      return { E_ITEM_BEE_NEST, 0 };
 			case Item::BeeSpawnEgg:  return { E_ITEM_BEE_SPAWN_EGG, 0 };
 			case Item::HoneyBottle:  return { E_ITEM_HONEY_BOTTLE, 0 };

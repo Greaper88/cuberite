@@ -731,6 +731,7 @@ bool cProtocol_1_13::ReadItem(cByteBuffer & a_ByteBuffer, cItem & a_Item, size_t
 	const auto Translated = GetItemFromProtocolID(ToUnsigned(ItemID));
 	a_Item.m_ItemType = Translated.first;
 	a_Item.m_ItemDamage = Translated.second;
+	a_Item.m_BeeHomeData.clear();
 
 	HANDLE_PACKET_READ(a_ByteBuffer, ReadBEInt8, Int8, ItemCount);
 	a_Item.m_ItemCount = ItemCount;
@@ -979,24 +980,29 @@ void cProtocol_1_13::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const
 	a_Pkt.WriteBEInt16(static_cast<Int16>(GetProtocolItemType(a_Item.m_ItemType, a_Item.m_ItemDamage)));
 	a_Pkt.WriteBEInt8(a_Item.m_ItemCount);
 
-	WriteFallbackItemIdentity(a_Pkt, a_Item);
+	WriteItemMetadata(a_Pkt, a_Item);
 }
 
 
 
 
 
-void cProtocol_1_13::WriteFallbackItemIdentity(cPacketizer & a_Pkt, const cItem & a_Item) const
+void cProtocol_1_13::WriteItemMetadata(cPacketizer & a_Pkt, const cItem & a_Item) const
 {
 	const auto Alternate = LegacyBlockFallbacks::ForItem(GetProtocolVersion(), a_Item.m_ItemType, a_Item.m_ItemDamage);
-	if (Alternate.first == a_Item.m_ItemType)
+	const bool IsFallback = Alternate.first != a_Item.m_ItemType;
+	if (!IsFallback && a_Item.m_BeeHomeData.empty())
 	{
 		a_Pkt.WriteBEInt8(0);
 		return;
 	}
 
 	cFastNBTWriter Writer;
-	LegacyBlockFallbacks::WriteItemIdentity(Writer, a_Item);
+	if (IsFallback)
+	{
+		LegacyBlockFallbacks::WriteItemIdentity(Writer, a_Item);
+	}
+	WriteBeeHomeItemData(Writer, a_Item);
 	Writer.Finish();
 	a_Pkt.WriteBuf(Writer.GetResult());
 }
@@ -1579,6 +1585,7 @@ bool cProtocol_1_13_2::ReadItem(cByteBuffer & a_ByteBuffer, cItem & a_Item, size
 	const auto Translated = GetItemFromProtocolID(ItemID);
 	a_Item.m_ItemType = Translated.first;
 	a_Item.m_ItemDamage = Translated.second;
+	a_Item.m_BeeHomeData.clear();
 
 	HANDLE_PACKET_READ(a_ByteBuffer, ReadBEInt8, Int8, ItemCount);
 	a_Item.m_ItemCount = ItemCount;
@@ -1625,5 +1632,5 @@ void cProtocol_1_13_2::WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) cons
 	a_Pkt.WriteVarInt32(GetProtocolItemType(a_Item.m_ItemType, a_Item.m_ItemDamage));
 	a_Pkt.WriteBEInt8(a_Item.m_ItemCount);
 
-	WriteFallbackItemIdentity(a_Pkt, a_Item);
+	WriteItemMetadata(a_Pkt, a_Item);
 }

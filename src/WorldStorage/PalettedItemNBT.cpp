@@ -1,10 +1,12 @@
 #include "Globals.h"
 #include "PalettedItemNBT.h"
 #include "FastNBT.h"
+#include "BeeNBT.h"
 
 #include "Item.h"
 #include "JsonUtils.h"
 #include "OSSupport/File.h"
+#include "Protocol/LegacyBlockFallbacks.h"
 #include "Protocol/Palettes/Palette_1_13.h"
 #include "Protocol/Palettes/Palette_1_13_1.h"
 #include "Protocol/Palettes/Palette_1_14.h"
@@ -23,6 +25,7 @@ namespace
 	struct cItemPaletteVersion
 	{
 		size_t Column;
+		cProtocol::Version ProtocolVersion;
 		UInt32 (*GetProtocolID)(Item);
 		Item (*GetItem)(UInt32);
 	};
@@ -33,12 +36,12 @@ namespace
 		{
 			case 1519:  // 1.13
 			{
-				return {0, Palette_1_13::From, Palette_1_13::ToItem};
+				return {0, cProtocol::Version::v1_13, Palette_1_13::From, Palette_1_13::ToItem};
 			}
 			case 1628:  // 1.13.1
 			case 1631:  // 1.13.2
 			{
-				return {1, Palette_1_13_1::From, Palette_1_13_1::ToItem};
+				return {1, cProtocol::Version::v1_13_1, Palette_1_13_1::From, Palette_1_13_1::ToItem};
 			}
 			case 1952:  // 1.14
 			case 1957:
@@ -46,13 +49,13 @@ namespace
 			case 1968:
 			case 1976:  // 1.14.4
 			{
-				return {2, Palette_1_14::From, Palette_1_14::ToItem};
+				return {2, cProtocol::Version::v1_14, Palette_1_14::From, Palette_1_14::ToItem};
 			}
 			case 2225:  // 1.15
 			case 2227:
 			case 2230:  // 1.15.2
 			{
-				return {3, Palette_1_15::From, Palette_1_15::ToItem};
+				return {3, cProtocol::Version::v1_15_2, Palette_1_15::From, Palette_1_15::ToItem};
 			}
 			default:
 			{
@@ -417,7 +420,23 @@ namespace
 			return !IsPotion(a_Item.m_ItemType);
 		}
 		const auto EnchantmentField = (a_Item.m_ItemType == E_ITEM_ENCHANTED_BOOK) ? "StoredEnchantments" : "Enchantments";
-		if (!HasOnlyFields(a_NBT, a_Tag, {"RepairCost", "display", EnchantmentField, "Damage", "map", "Potion", "Fireworks", "Explosion"}))
+		const std::initializer_list<std::string_view> Fields
+		{
+			"RepairCost", "display", EnchantmentField, "Damage", "map", "Potion", "Fireworks", "Explosion",
+			"BlockEntityTag", "BlockStateTag", LegacyBlockFallbacks::ItemIdentityTag,
+		};
+		if (!HasOnlyFields(a_NBT, a_Tag, Fields))
+		{
+			return false;
+		}
+		if (a_Item.IsBeeHome())
+		{
+			if (!BeeNBT::ReadItemData(a_Item.m_BeeHomeData, a_NBT, a_Tag))
+			{
+				return false;
+			}
+		}
+		else if ((a_NBT.FindChildByName(a_Tag, "BlockEntityTag") >= 0) || (a_NBT.FindChildByName(a_Tag, "BlockStateTag") >= 0))
 		{
 			return false;
 		}
@@ -585,6 +604,15 @@ bool PalettedItemNBT::Read(cItem & a_Item, const cParsedNBT & a_NBT, int a_Tag, 
 		return false;
 	}
 	cItem ItemStack(Type, static_cast<char>(a_NBT.GetByte(Count)), Meta);
+	// A vanilla upgrade may keep the original, already valid substitute item.
+	if (
+		(Tag >= 0) && (a_NBT.GetType(Tag) == TAG_Compound) &&
+		(a_NBT.FindChildByName(Tag, LegacyBlockFallbacks::ItemIdentityTag) >= 0) &&
+		!LegacyBlockFallbacks::RestoreItemIdentity(cProtocol::Version::v1_12, ItemStack, a_NBT, Tag)
+	)
+	{
+		return false;
+	}
 	if (ItemStack.IsEmpty() || !ReadMetadata(ItemStack, a_NBT, Tag, a_DataVersion))
 	{
 		return false;
@@ -617,12 +645,14 @@ void PalettedItemNBT::Write(cFastNBTWriter & a_Writer, const cItem & a_Item, int
 	const bool Durability = HasDurability(a_Item);
 	const bool Map = Type == E_ITEM_MAP;
 	const auto Meta = static_cast<short>((Durability || Potion || Map) ? 0 : a_Item.m_ItemDamage);
-	const auto Named = PaletteUpgrade::FromItem(Type, Meta);
+	const auto Stored = LegacyBlockFallbacks::ForItem(Version.ProtocolVersion, Type, Meta);
+	const bool IsFallback = Stored.first != Type;
+	const auto Named = PaletteUpgrade::FromItem(Stored.first, Stored.second);
 	const auto ID = Version.GetProtocolID(Named);
 	const auto Entry = Registry.ByID.find(ID);
 	if (
 		(ID == 0) || (Entry == Registry.ByID.end()) || (Version.GetItem(ID) != Named) ||
-		(PaletteUpgrade::ToItem(Named) != std::pair<short, short>{Type, Meta})
+		(PaletteUpgrade::ToItem(Named) != Stored)
 	)
 	{
 		throw std::runtime_error(fmt::format(FMT_STRING("Cannot write legacy item {}:{} in Java DataVersion {}"), a_Item.m_ItemType, a_Item.m_ItemDamage, a_DataVersion));
@@ -641,9 +671,17 @@ void PalettedItemNBT::Write(cFastNBTWriter & a_Writer, const cItem & a_Item, int
 	}
 	const bool Display = !a_Item.IsBothNameAndLoreEmpty() || a_Item.m_ItemColor.IsValid();
 	const bool Firework = ((Type == E_ITEM_FIREWORK_ROCKET) || (Type == E_ITEM_FIREWORK_STAR)) && !a_Item.m_FireworkItem.IsEqualTo(cFireworkItem{});
-	if (Potion || Map || (Durability && (a_Item.m_ItemDamage != 0)) || Display || Firework || !a_Item.m_Enchantments.IsEmpty() || (a_Item.m_RepairCost != 0))
+	if (
+		IsFallback || !a_Item.m_BeeHomeData.empty() || Potion || Map || (Durability && (a_Item.m_ItemDamage != 0)) ||
+		Display || Firework || !a_Item.m_Enchantments.IsEmpty() || (a_Item.m_RepairCost != 0)
+	)
 	{
 		a_Writer.BeginCompound("tag");
+		if (IsFallback)
+		{
+			LegacyBlockFallbacks::WriteItemIdentity(a_Writer, a_Item);
+		}
+		BeeNBT::WriteItemData(a_Writer, a_Item.m_BeeHomeData);
 		if (Potion)
 		{
 			a_Writer.AddString("Potion", GetPotionName(a_Item.m_ItemDamage));

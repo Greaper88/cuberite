@@ -8,6 +8,7 @@
 #include "BeaconEntity.h"
 #include "BedEntity.h"
 #include "BeehiveEntity.h"
+#include "CampfireEntity.h"
 #include "BlockEntity.h"
 #include "EnchantingTableEntity.h"
 #include "BrewingstandEntity.h"
@@ -88,6 +89,7 @@ OwnedBlockEntity cBlockEntity::CreateByBlockType(const BLOCKTYPE a_BlockType, co
 		case E_BLOCK_BED:               return std::make_unique<cBedEntity            >(a_BlockType, a_BlockMeta, a_Pos, a_World);
 		case E_BLOCK_BEEHIVE:           return std::make_unique<cBeehiveEntity        >(a_BlockType, a_BlockMeta, a_Pos, a_World);
 		case E_BLOCK_BREWING_STAND:     return std::make_unique<cBrewingstandEntity   >(a_BlockType, a_BlockMeta, a_Pos, a_World);
+		case E_BLOCK_CAMPFIRE:          return std::make_unique<cCampfireEntity      >(a_BlockType, a_BlockMeta, a_Pos, a_World);
 		case E_BLOCK_CHEST:             return std::make_unique<cChestEntity          >(a_BlockType, a_BlockMeta, a_Pos, a_World);
 		case E_BLOCK_COMMAND_BLOCK:     return std::make_unique<cCommandBlockEntity   >(a_BlockType, a_BlockMeta, a_Pos, a_World);
 		case E_BLOCK_DISPENSER:         return std::make_unique<cDispenserEntity      >(a_BlockType, a_BlockMeta, a_Pos, a_World);
@@ -137,6 +139,7 @@ bool cBlockEntity::IsBlockEntityBlockType(const BLOCKTYPE a_BlockType)
 		case E_BLOCK_BED:
 		case E_BLOCK_BEEHIVE:
 		case E_BLOCK_BREWING_STAND:
+		case E_BLOCK_CAMPFIRE:
 		case E_BLOCK_CHEST:
 		case E_BLOCK_COMMAND_BLOCK:
 		case E_BLOCK_DISPENSER:

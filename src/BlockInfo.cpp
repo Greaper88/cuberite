@@ -418,6 +418,7 @@ NIBBLETYPE cBlockInfo::GetLightValue(const BLOCKTYPE Block)
 		case E_BLOCK_BEACON:               return 15;
 		case E_BLOCK_BREWING_STAND:        return 1;
 		case E_BLOCK_BROWN_MUSHROOM:       return 1;
+		case E_BLOCK_CAMPFIRE:             return 15;
 		case E_BLOCK_BURNING_FURNACE:      return 13;
 		case E_BLOCK_DRAGON_EGG:           return 1;
 		case E_BLOCK_ENDER_CHEST:          return 7;
@@ -468,6 +469,7 @@ NIBBLETYPE cBlockInfo::GetSpreadLightFalloff(const BLOCKTYPE Block)
 		case E_BLOCK_BREWING_STAND:
 		case E_BLOCK_BROWN_MUSHROOM:
 		case E_BLOCK_CACTUS:
+		case E_BLOCK_CAMPFIRE:
 		case E_BLOCK_CAKE:
 		case E_BLOCK_CARPET:
 		case E_BLOCK_CARROTS:
@@ -990,6 +992,7 @@ bool cBlockInfo::IsTransparent(const BLOCKTYPE Block)
 		case E_BLOCK_BROWN_MUSHROOM:
 		case E_BLOCK_BROWN_SHULKER_BOX:
 		case E_BLOCK_CACTUS:
+		case E_BLOCK_CAMPFIRE:
 		case E_BLOCK_CAKE:
 		case E_BLOCK_CARPET:
 		case E_BLOCK_CARROTS:
@@ -1162,6 +1165,7 @@ float cBlockInfo::GetBlockHeight(const BLOCKTYPE Block)
 		case E_BLOCK_BED:                 return 0.5625;  // 9 pixels
 		case E_BLOCK_BIRCH_FENCE:         return 1.5;
 		case E_BLOCK_BIRCH_FENCE_GATE:    return 1.5;
+		case E_BLOCK_CAMPFIRE:            return 0.4375;  // 7 pixels
 		case E_BLOCK_CAKE:                return 0.5;     // 8 pixels
 		case E_BLOCK_DARK_OAK_FENCE:      return 1.5;
 		case E_BLOCK_DARK_OAK_FENCE_GATE: return 1.5;
@@ -1225,6 +1229,7 @@ float cBlockInfo::GetHardness(const BLOCKTYPE Block)
 		case E_BLOCK_BROWN_SHULKER_BOX:             return 2.0f;
 		case E_BLOCK_CACTUS:                        return 0.4f;
 		case E_BLOCK_CAKE:                          return 0.5f;
+		case E_BLOCK_CAMPFIRE:                      return 2.0f;
 		case E_BLOCK_CARPET:                        return 0.1f;
 		case E_BLOCK_CARROTS:                       return 0.0f;
 		case E_BLOCK_CAULDRON:                      return 2.0f;

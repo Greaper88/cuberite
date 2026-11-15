@@ -236,6 +236,10 @@ protected:
 	/** Writes the entity properties for the specified entity, including the Count field. */
 	virtual void WriteEntityProperties(cPacketizer & a_Pkt, const cEntity & a_Entity) const;
 
+	// Leave room for other item metadata in the protocol's 64 KiB packet buffer.
+	static constexpr size_t MaxBeeHomeWireData = 32 KiB;
+	static void WriteBeeHomeItemData(cFastNBTWriter & a_Writer, const cItem & a_Item);
+
 	/** Writes the item data into a packet. */
 	virtual void WriteItem(cPacketizer & a_Pkt, const cItem & a_Item) const;
 

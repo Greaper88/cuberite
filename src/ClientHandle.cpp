@@ -1366,6 +1366,9 @@ void cClientHandle::HandleBlockDigFinished(Vector3i a_BlockPos, eBlockFace a_Blo
 	// Apply hunger:
 	m_Player->AddFoodExhaustion(0.025);
 
+	// A Silk Touch tool can break on this hit. Keep its enchantment for the hive drop.
+	const auto HiveTool = (DugBlock == E_BLOCK_BEEHIVE) ? std::optional<cItem>{m_Player->GetEquippedItem()} : std::nullopt;
+
 	// Damage the tool, but not for 0 hardness blocks:
 	m_Player->UseEquippedItem(cBlockInfo::IsOneHitDig(DugBlock) ? cItemHandler::dlaBreakBlockInstant : cItemHandler::dlaBreakBlock);
 
@@ -1373,7 +1376,7 @@ void cClientHandle::HandleBlockDigFinished(Vector3i a_BlockPos, eBlockFace a_Blo
 	Vector3i absPos(a_BlockPos);
 	if (m_Player->IsGameModeSurvival())
 	{
-		World->DropBlockAsPickups(absPos, m_Player, &m_Player->GetEquippedItem());
+		World->DropBlockAsPickups(absPos, m_Player, HiveTool.has_value() ? &*HiveTool : &m_Player->GetEquippedItem());
 	}
 	else
 	{

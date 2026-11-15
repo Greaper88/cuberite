@@ -13,8 +13,6 @@ namespace
 	using Version = cProtocol::Version;
 	using State = LegacyBlockFallbacks::cState;
 
-	constexpr char LegacyItemTag[] = "CuberiteLegacyBlock";
-
 	struct cPackBlock
 	{
 		BLOCKTYPE Block;
@@ -118,6 +116,10 @@ namespace
 LegacyBlockFallbacks::cState LegacyBlockFallbacks::ForBlock(cProtocol::Version a_Version, BLOCKTYPE a_Type, NIBBLETYPE a_Meta)
 {
 	a_Meta &= 0x0f;
+	if ((a_Type == E_BLOCK_CAMPFIRE) && (a_Version < Version::v1_14))
+	{
+		return { E_BLOCK_WOODEN_SLAB, E_META_WOODEN_SLAB_OAK };
+	}
 	if ((a_Type == E_BLOCK_BEEHIVE) && (a_Version < Version::v1_15_2))
 	{
 		return ((a_Meta & E_META_BEEHIVE_NEST) != 0) ? State{ E_BLOCK_LOG, E_META_LOG_OAK_UP_DOWN } : State{ E_BLOCK_PLANKS, E_META_PLANKS_OAK };
@@ -173,6 +175,10 @@ Int32 LegacyBlockFallbacks::ForEffect(cProtocol::Version a_Version, Int32 a_Data
 std::pair<short, short> LegacyBlockFallbacks::ForItem(cProtocol::Version a_Version, short a_Type, short a_Damage)
 {
 	const std::pair<short, short> Native{ a_Type, a_Damage };
+	if ((a_Type == E_BLOCK_CAMPFIRE) && (a_Version < Version::v1_14))
+	{
+		return { E_BLOCK_WOODEN_SLAB, E_META_WOODEN_SLAB_OAK };
+	}
 	if (a_Version < Version::v1_15_2)
 	{
 		switch (a_Type)
@@ -220,7 +226,7 @@ std::pair<short, short> LegacyBlockFallbacks::ForItem(cProtocol::Version a_Versi
 
 void LegacyBlockFallbacks::WriteItemIdentity(cFastNBTWriter & a_Writer, const cItem & a_Item)
 {
-	a_Writer.BeginCompound(LegacyItemTag);
+	a_Writer.BeginCompound(ItemIdentityTag);
 	a_Writer.AddShort("Type", a_Item.m_ItemType);
 	a_Writer.AddShort("Damage", a_Item.m_ItemDamage);
 	a_Writer.EndCompound();
@@ -230,22 +236,24 @@ void LegacyBlockFallbacks::WriteItemIdentity(cFastNBTWriter & a_Writer, const cI
 
 
 
-void LegacyBlockFallbacks::RestoreItemIdentity(cProtocol::Version a_Version, cItem & a_Item, const cParsedNBT & a_Nbt)
+bool LegacyBlockFallbacks::RestoreItemIdentity(
+	cProtocol::Version a_Version, cItem & a_Item, const cParsedNBT & a_Nbt, int a_Tag
+)
 {
 	if ((a_Version >= Version::v1_15_2) || a_Item.IsEmpty())
 	{
-		return;
+		return false;
 	}
-	const int Identity = a_Nbt.FindChildByName(a_Nbt.GetRoot(), LegacyItemTag);
+	const int Identity = a_Nbt.FindChildByName((a_Tag < 0) ? a_Nbt.GetRoot() : a_Tag, ItemIdentityTag);
 	if ((Identity < 0) || (a_Nbt.GetType(Identity) != TAG_Compound))
 	{
-		return;
+		return false;
 	}
 	const int TypeTag = a_Nbt.FindChildByName(Identity, "Type");
 	const int DamageTag = a_Nbt.FindChildByName(Identity, "Damage");
 	if ((TypeTag < 0) || (DamageTag < 0) || (a_Nbt.GetType(TypeTag) != TAG_Short) || (a_Nbt.GetType(DamageTag) != TAG_Short))
 	{
-		return;
+		return false;
 	}
 	const auto Type = a_Nbt.GetShort(TypeTag);
 	const auto Damage = a_Nbt.GetShort(DamageTag);
@@ -254,5 +262,7 @@ void LegacyBlockFallbacks::RestoreItemIdentity(cProtocol::Version a_Version, cIt
 	{
 		a_Item.m_ItemType = Type;
 		a_Item.m_ItemDamage = Damage;
+		return true;
 	}
+	return false;
 }

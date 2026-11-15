@@ -84,8 +84,13 @@ statistics in a separate cuberite directory inside paletted worlds.
 Java 1.15 through 1.15.2 chunks support bees, bee nests, and beehives.
 Newly generated Overworld trees can have occupied bee nests. Bees visit
 flowers and bring nectar back to their homes. Harvest full nests or hives
-with glass bottles or shears. Honey levels and occupants survive restarts.
-Older clients see bats, wood blocks, and substitute items. Older chunk
+with glass bottles or shears. Smoke from a lit campfire calms bees during
+harvest. A comparator reads the honey level from 0 to 5. Silk Touch carries
+the bees and honey level in the item so they return when it is placed.
+Honey levels and occupants survive restarts, including in carried items.
+
+Campfires are supported in Java 1.14 through 1.15.2 chunks. Older clients
+see compatible substitutes for newer blocks, mobs, and items. Older chunk
 formats keep their original data version and cannot store live bee homes.
 
 Roadmap items include native Bedrock connections over NetherNet, Bedrock
@@ -96,6 +101,7 @@ AI assistance disclosure
 
 OpenAI Codex contributed to the implementation and testing of paletted
 Anvil entity, block entity and item persistence in this fork, including
-bee gameplay, bee nests and beehives, and client compatibility.
+bee gameplay, campfire smoke, comparators, Silk Touch transfers,
+and client compatibility.
 
 --------------------------------------------------------------------------------

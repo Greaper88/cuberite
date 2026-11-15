@@ -551,7 +551,10 @@ bool cWSSPalettedAnvil::LoadChunkFromData(const cChunkCoords & a_Chunk, Contiguo
 			for (size_t Index = 0; Index < Blocks->size(); ++Index)
 			{
 				const auto Block = (*Blocks)[Index];
-				if ((Block != E_BLOCK_NOTE_BLOCK) && (Block != E_BLOCK_FLOWER_POT) && (Block != E_BLOCK_BEEHIVE))
+				if (
+					(Block != E_BLOCK_NOTE_BLOCK) && (Block != E_BLOCK_FLOWER_POT) &&
+					(Block != E_BLOCK_BEEHIVE) && (Block != E_BLOCK_CAMPFIRE)
+				)
 				{
 					continue;
 				}

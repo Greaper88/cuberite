@@ -168,6 +168,23 @@ namespace
 				LegacyByName[State.Name].push_back(ID);
 				States[ID].emplace(std::move(State));
 			}
+
+			for (UInt32 Meta = 0; Meta < 16; ++Meta)
+			{
+				const auto ID = (E_BLOCK_CAMPFIRE << 4) | Meta;
+				cNamedBlockState State
+				{
+					"minecraft:campfire",
+					{
+						{"facing", Facings[Meta & 3]},
+						{"lit", ((Meta & E_META_CAMPFIRE_LIT) != 0) ? "true" : "false"},
+						{"signal_fire", ((Meta & E_META_CAMPFIRE_SIGNAL) != 0) ? "true" : "false"},
+						{"waterlogged", "false"},
+					}
+				};
+				LegacyByName[State.Name].push_back(ID);
+				States[ID].emplace(std::move(State));
+			}
 		}
 	};
 

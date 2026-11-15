@@ -19,6 +19,7 @@ target_sources(
 	BlockCarpet.h
 	BlockCauldron.h
 	BlockBeehive.h
+	BlockCampfire.h
 	BlockChest.h
 	BlockCloth.h
 	BlockCobWeb.h

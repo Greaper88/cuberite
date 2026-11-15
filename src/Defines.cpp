@@ -161,7 +161,7 @@ bool IsValidBlock(int a_BlockType)
 {
 	return (
 		((a_BlockType > -1) && (a_BlockType <= E_BLOCK_MAX_TYPE_ID)) ||
-		(a_BlockType == E_BLOCK_STRUCTURE_BLOCK)  // The unfinished-block sentinel separates this from the consecutive range.
+		(a_BlockType == E_BLOCK_STRUCTURE_BLOCK)
 	);
 }
 

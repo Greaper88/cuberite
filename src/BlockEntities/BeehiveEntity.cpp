@@ -1,6 +1,7 @@
 #include "Globals.h"
 
 #include "BeehiveEntity.h"
+#include "CampfireEntity.h"
 #include "BlockInfo.h"
 #include "BoundingBox.h"
 #include "Chunk.h"
@@ -58,10 +59,17 @@ void cBeehiveEntity::SetBlockMeta(const NIBBLETYPE a_Meta)
 
 void cBeehiveEntity::SetHoneyLevel(const int a_Level)
 {
-	m_HoneyLevel = std::clamp(a_Level, 0, MaximumHoneyLevel);
+	const auto Level = std::clamp(a_Level, 0, MaximumHoneyLevel);
+	if (m_HoneyLevel == Level)
+	{
+		return;
+	}
+
+	m_HoneyLevel = Level;
 	if (m_World != nullptr)
 	{
 		UpdateBlockState();
+		m_World->WakeUpSimulators(m_Pos);
 	}
 }
 
@@ -151,6 +159,10 @@ void cBeehiveEntity::OnAddToWorld(cWorld & a_World, cChunk & a_Chunk)
 {
 	Super::OnAddToWorld(a_World, a_Chunk);
 	UpdateBlockState();
+	if (m_HoneyLevel > 0)
+	{
+		a_World.WakeUpSimulators(m_Pos);
+	}
 }
 
 
@@ -232,6 +244,10 @@ bool cBeehiveEntity::UsedBy(cPlayer * a_Player)
 	}
 
 	SetHoneyLevel(0);
+	if (cCampfireEntity::IsSmokey(*m_World, m_Pos))
+	{
+		return true;
+	}
 
 	const auto Center = Vector3d(m_Pos) + Vector3d(0.5, 0.5, 0.5);
 	const Vector3d Radius(8, 6, 8);

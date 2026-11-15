@@ -29,9 +29,11 @@ namespace LegacyBlockFallbacks
 	/** Returns a valid visible block item for a legacy client, if the canonical item is missing there. */
 	std::pair<short, short> ForItem(cProtocol::Version a_Version, short a_Type, short a_Damage);
 
+	inline constexpr char ItemIdentityTag[] = "CuberiteLegacyBlock";
+
 	/** Attaches the original block item's identity to its substitute for inventory round trips. */
 	void WriteItemIdentity(cFastNBTWriter & a_Writer, const cItem & a_Item);
 
-	/** Restores the original item only if it translates to the same wire item. */
-	void RestoreItemIdentity(cProtocol::Version a_Version, cItem & a_Item, const cParsedNBT & a_Nbt);
+	/** Restores the original item only if it translates to the same substitute. Defaults to the root tag. */
+	bool RestoreItemIdentity(cProtocol::Version a_Version, cItem & a_Item, const cParsedNBT & a_Nbt, int a_Tag = -1);
 }

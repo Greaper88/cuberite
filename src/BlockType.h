@@ -270,14 +270,15 @@ enum ENUM_BLOCK_TYPE : BLOCKTYPE
 	E_BLOCK_CONCRETE = 251,
 	E_BLOCK_CONCRETE_POWDER = 252,
 	E_BLOCK_BEEHIVE = 253,  // Shared engine ID for Java beehives and bee nests
+	E_BLOCK_CAMPFIRE = 254,
 	E_BLOCK_STRUCTURE_BLOCK = 255,
 
 	// Keep these two as the last values. Update the last block value to the last block with an id less than 255 when adding another block
-	// IsValidBlock() depends on this (255 gets checked additionally because there is a gap. See https://minecraft.wiki/w/Data_values#Block_IDs
-	E_BLOCK_NUMBER_OF_TYPES = E_BLOCK_BEEHIVE + 1,  ///< Number of individual (different) blocktypes
+	// IsValidBlock() checks the consecutive range and handles the structure block separately.
+	E_BLOCK_NUMBER_OF_TYPES = E_BLOCK_CAMPFIRE + 1,  ///< Number of individual (different) blocktypes
 	E_BLOCK_MAX_TYPE_ID = E_BLOCK_NUMBER_OF_TYPES - 1,  ///< Maximum BlockType number used
 
-	E_BLOCK_UNFINISHED = 254,  // Special type used as a placeholder, signifying that the block lacks implementation
+	E_BLOCK_UNFINISHED = E_BLOCK_CAMPFIRE,  // Legacy API alias for the former unused placeholder ID
 
 	// Synonym or ID compatibility
 	E_BLOCK_YELLOW_FLOWER = E_BLOCK_DANDELION,
@@ -604,6 +605,14 @@ enum ENUM_BLOCK_META : NIBBLETYPE
 	E_META_BEEHIVE_FACING_XM = 2,
 	E_META_BEEHIVE_FACING_XP = 3,
 	E_META_BEEHIVE_NEST = 4,
+
+	// E_BLOCK_CAMPFIRE metas. Waterlogging is retained by the campfire entity.
+	E_META_CAMPFIRE_FACING_ZM = 0,
+	E_META_CAMPFIRE_FACING_ZP = 1,
+	E_META_CAMPFIRE_FACING_XM = 2,
+	E_META_CAMPFIRE_FACING_XP = 3,
+	E_META_CAMPFIRE_LIT = 4,
+	E_META_CAMPFIRE_SIGNAL = 8,
 
 	// E_BLOCK_CHEST metas:
 	E_META_CHEST_FACING_ZM = 2,
