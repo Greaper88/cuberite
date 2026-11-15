@@ -89,9 +89,11 @@ harvest. A comparator reads the honey level from 0 to 5. Silk Touch carries
 the bees and honey level in the item so they return when it is placed.
 Honey levels and occupants survive restarts, including in carried items.
 
-Campfires are supported in Java 1.14 through 1.15.2 chunks. Older clients
-see compatible substitutes for newer blocks, mobs, and items. Older chunk
-formats keep their original data version and cannot store live bee homes.
+Campfires cook up to four food items at once in Java 1.14 through 1.15.2
+chunks. Use a lit campfire with raw food. Each item takes 600 game ticks
+and drops when cooked. Food and per-slot progress survive a restart in
+native Anvil storage. Older clients see compatible substitutes for newer
+blocks, mobs, and items. Older chunks retain their original data version.
 
 Roadmap items include native Bedrock connections over NetherNet, Bedrock
 .mcworld compatibility, and datapack support. A Lua plugin is a possible
@@ -101,7 +103,7 @@ AI assistance disclosure
 
 OpenAI Codex contributed to the implementation and testing of paletted
 Anvil entity, block entity and item persistence in this fork, including
-bee gameplay, campfire smoke, comparators, Silk Touch transfers,
+bee gameplay, campfire smoke and cooking, comparators, Silk Touch transfers,
 and client compatibility.
 
 --------------------------------------------------------------------------------

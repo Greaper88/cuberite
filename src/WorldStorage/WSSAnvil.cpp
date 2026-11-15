@@ -1,6 +1,7 @@
 #include "Globals.h"
 #include "WSSAnvil.h"
 #include "BeeNBT.h"
+#include "CampfireNBT.h"
 #include "WorldFormat.h"
 #include "../BlockEntities/BeehiveEntity.h"
 #include "../BlockEntities/CampfireEntity.h"
@@ -723,32 +724,10 @@ OwnedBlockEntity cWSSAnvil::LoadBlockEntityFromNBT(const cParsedNBT & a_NBT, int
 				return nullptr;
 			}
 			auto Campfire = std::make_unique<cCampfireEntity>(a_BlockType, a_BlockMeta, a_Pos, nullptr);
-			const auto Items = a_NBT.FindChildByName(a_Tag, "Items");
-			if (Items < 0)
-			{
-				return Campfire;
-			}
-			if (
-				(a_NBT.GetType(Items) != TAG_List) ||
-				((a_NBT.GetChildrenType(Items) != TAG_Compound) && (a_NBT.GetChildrenType(Items) != TAG_End))
-			)
+			if (!CampfireNBT::Read(*Campfire, a_NBT, a_Tag, m_EntityDataVersion))
 			{
 				return nullptr;
 			}
-			cItems Imported;
-			for (int Child = a_NBT.GetFirstChild(Items); Child >= 0; Child = a_NBT.GetNextSibling(Child))
-			{
-				cItem Item;
-				if (!LoadItemFromNBT(Item, a_NBT, Child))
-				{
-					return nullptr;
-				}
-				if (!Item.IsEmpty())
-				{
-					Imported.push_back(std::move(Item));
-				}
-			}
-			Campfire->SetImportedItems(std::move(Imported));
 			return Campfire;
 		}
 		case E_BLOCK_BREWING_STAND:      return LoadBrewingstandFromNBT    (a_NBT, a_Tag, a_BlockType, a_BlockMeta, a_Pos);

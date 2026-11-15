@@ -17,8 +17,10 @@ Implements the 1.14 protocol classes:
 #include "../World.h"
 #include "../UI/HorseWindow.h"
 #include "../ClientHandle.h"
+#include "../WorldStorage/CampfireNBT.h"
 #include "../WorldStorage/FastNBT.h"
 #include "../BlockEntities/BlockEntity.h"
+#include "../BlockEntities/CampfireEntity.h"
 
 #include "../Entities/ArrowEntity.h"
 #include "../Entities/ItemFrame.h"
@@ -294,18 +296,47 @@ void cProtocol_1_14::SendUpdateBlockEntity(cBlockEntity & a_BlockEntity)
 		// case E_BLOCK_SHULKER_BOX:    Action = 10; break;  // sets shulker box - not used just here if anyone is confused from reading the protocol wiki
 		case E_BLOCK_BED:               Action = 11; break;  // Update bed color
 		// case E_BLOCK_JIGSAW:         Action = 12; break;
-		// case E_BLOCK_CAMPFIRE:       Action = 13; break;
+		case E_BLOCK_CAMPFIRE:          Action = 13; break;
 
 		default: return;  // Block entities change between versions
+	}
+
+	cFastNBTWriter Writer;
+	if (Action == 13)
+	{
+		Writer.AddString("id", "minecraft:campfire");
+		Writer.AddInt("x", a_BlockEntity.GetPosX());
+		Writer.AddInt("y", a_BlockEntity.GetPosY());
+		Writer.AddInt("z", a_BlockEntity.GetPosZ());
+		try
+		{
+			// Select the client release's named item registry. All 1.14 releases share a registry here.
+			const auto DataVersion = (GetProtocolVersion() >= Version::v1_15_2) ? 2230 : 1976;
+			CampfireNBT::WriteItems(Writer, static_cast<const cCampfireEntity &>(a_BlockEntity), DataVersion);
+		}
+		catch (const std::runtime_error & Error)
+		{
+			LOGD("Could not encode campfire contents for a client: %s", Error.what());
+			return;
+		}
+	}
+	else
+	{
+		WriteBlockEntity(Writer, a_BlockEntity);
+	}
+	Writer.Finish();
+
+	cCSLock Lock(m_CSPacket);
+	const auto HeaderSize = cByteBuffer::GetVarIntSize(GetPacketID(pktUpdateBlockEntity)) + sizeof(UInt64) + sizeof(Byte);
+	if (!m_OutPacketBuffer.CanWriteBytes(HeaderSize + Writer.GetResult().size()))
+	{
+		LOGD("Block entity update exceeds the outgoing packet buffer");
+		return;
 	}
 
 	cPacketizer Pkt(*this, pktUpdateBlockEntity);
 	Pkt.WriteXZYPosition64(a_BlockEntity.GetPosX(), a_BlockEntity.GetPosY(), a_BlockEntity.GetPosZ());
 	Pkt.WriteBEUInt8(Action);
-
-	cFastNBTWriter Writer;
-	WriteBlockEntity(Writer, a_BlockEntity);
-	Writer.Finish();
 	Pkt.WriteBuf(Writer.GetResult());
 }
 

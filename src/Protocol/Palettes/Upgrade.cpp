@@ -1739,6 +1739,8 @@ namespace PaletteUpgrade
 			case (E_ITEM_BEE_SPAWN_EGG << 16) | 0:  return Item::BeeSpawnEgg;
 			case (E_ITEM_HONEY_BOTTLE << 16) | 0:   return Item::HoneyBottle;
 			case (E_ITEM_HONEYCOMB << 16) | 0:      return Item::Honeycomb;
+			case (E_ITEM_KELP << 16) | 0:            return Item::Kelp;
+			case (E_ITEM_DRIED_KELP << 16) | 0:      return Item::DriedKelp;
 			case (1 << 16) | 0: return Item::Stone;
 			case (1 << 16) | 1: return Item::Granite;
 			case (1 << 16) | 2: return Item::PolishedGranite;
@@ -2556,6 +2558,8 @@ namespace PaletteUpgrade
 			case Item::BeeSpawnEgg:  return { E_ITEM_BEE_SPAWN_EGG, 0 };
 			case Item::HoneyBottle:  return { E_ITEM_HONEY_BOTTLE, 0 };
 			case Item::Honeycomb:    return { E_ITEM_HONEYCOMB, 0 };
+			case Item::Kelp:         return { E_ITEM_KELP, 0 };
+			case Item::DriedKelp:    return { E_ITEM_DRIED_KELP, 0 };
 			case Item::Stone: return { 1, 0 };
 			case Item::Granite: return { 1, 1 };
 			case Item::PolishedGranite: return { 1, 2 };

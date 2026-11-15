@@ -1524,7 +1524,7 @@ void cChunk::SendBlockTo(int a_RelX, int a_RelY, int a_RelZ, cClientHandle * a_C
 		m_PendingSendBlocks.emplace_back(m_PosX, m_PosZ, a_RelX, a_RelY, a_RelZ, GetBlock(a_RelX, a_RelY, a_RelZ), GetMeta(a_RelX, a_RelY, a_RelZ));
 		if (BlockEntity != nullptr)
 		{
-			m_PendingSendBlockEntities.push_back(BlockEntity);
+			QueueBlockEntityUpdate(*BlockEntity);
 		}
 		return;
 	}
@@ -1894,9 +1894,25 @@ bool cChunk::DoWithBlockEntityAt(Vector3i a_Position, cBlockEntityCallback a_Cal
 	}
 
 	const bool Result = a_Callback(*BlockEntity);
-	m_PendingSendBlockEntities.push_back(BlockEntity);
+	// The callback may have replaced or removed the entity.
+	if (auto * const Current = GetBlockEntityRel(a_Position); (Current != nullptr) && (Current == BlockEntity))
+	{
+		QueueBlockEntityUpdate(*Current);
+	}
 	MarkDirty();
 	return Result;
+}
+
+
+
+
+
+void cChunk::QueueBlockEntityUpdate(cBlockEntity & a_Entity)
+{
+	if (std::find(m_PendingSendBlockEntities.begin(), m_PendingSendBlockEntities.end(), &a_Entity) == m_PendingSendBlockEntities.end())
+	{
+		m_PendingSendBlockEntities.push_back(&a_Entity);
+	}
 }
 
 

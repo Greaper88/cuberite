@@ -8,7 +8,7 @@
 
 
 
-/** Models a campfire's smoke and block state. Java cooking data is retained by paletted storage. */
+/** Models a campfire's smoke, block state, and four independently cooking slots. */
 class cCampfireEntity final :
 	public cBlockEntity
 {
@@ -21,7 +21,16 @@ public:
 	bool IsWaterlogged() const { return m_Waterlogged; }
 	void SetWaterlogged(bool a_Waterlogged);
 	void SetBlockMeta(NIBBLETYPE a_Meta);
-	void SetImportedItems(cItems a_Items) { m_ImportedItems = std::move(a_Items); }
+	struct cCookingSlot
+	{
+		cItem Item;
+		int Progress = 0;
+		int Total = 0;
+	};
+	using cCookingSlots = std::array<cCookingSlot, 4>;
+
+	const cCookingSlots & GetCookingSlots() const { return m_CookingSlots; }
+	void SetCookingSlots(cCookingSlots a_Slots) { m_CookingSlots = std::move(a_Slots); }
 	cNamedBlockState GetBlockState() const;
 
 	/** Campfires under hives work through a vertical smoke column up to five blocks tall. */
@@ -32,11 +41,14 @@ private:
 	void CopyFrom(const cBlockEntity & a_Src) override;
 	cItems ConvertToPickups() const override;
 	void OnAddToWorld(cWorld & a_World, cChunk & a_Chunk) override;
-	void SendTo(cClientHandle & a_Client) override {}
+	void SendTo(cClientHandle & a_Client) override;
+	bool Tick(std::chrono::milliseconds a_Dt, cChunk & a_Chunk) override;
 	bool UsedBy(cPlayer * a_Player) override;
 
+	bool EjectSlot(cCookingSlot & a_Slot, const cItem & a_Stack);
+	void OnContentsChanged();
 	void UpdateBlockState();
 
 	bool m_Waterlogged = false;
-	cItems m_ImportedItems;
+	cCookingSlots m_CookingSlots;
 };

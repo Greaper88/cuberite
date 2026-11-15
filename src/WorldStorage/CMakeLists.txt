@@ -2,6 +2,7 @@ target_sources(
 	${CMAKE_PROJECT_NAME} PRIVATE
 
 	BeeNBT.cpp
+	CampfireNBT.cpp
 	EnchantmentSerializer.cpp
 	FastNBT.cpp
 	FireworksSerializer.cpp
@@ -20,6 +21,7 @@ target_sources(
 	WorldStorage.cpp
 
 	BeeNBT.h
+	CampfireNBT.h
 	EnchantmentSerializer.h
 	FastNBT.h
 	FireworksSerializer.h

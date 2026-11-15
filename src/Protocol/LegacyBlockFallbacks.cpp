@@ -175,6 +175,17 @@ Int32 LegacyBlockFallbacks::ForEffect(cProtocol::Version a_Version, Int32 a_Data
 std::pair<short, short> LegacyBlockFallbacks::ForItem(cProtocol::Version a_Version, short a_Type, short a_Damage)
 {
 	const std::pair<short, short> Native{ a_Type, a_Damage };
+	if (a_Version < Version::v1_13)
+	{
+		if (a_Type == E_ITEM_KELP)
+		{
+			return { E_ITEM_DYE, E_META_DYE_GREEN };
+		}
+		if (a_Type == E_ITEM_DRIED_KELP)
+		{
+			return { E_ITEM_COOKIE, 0 };
+		}
+	}
 	if ((a_Type == E_BLOCK_CAMPFIRE) && (a_Version < Version::v1_14))
 	{
 		return { E_BLOCK_WOODEN_SLAB, E_META_WOODEN_SLAB_OAK };

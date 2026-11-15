@@ -426,6 +426,9 @@ public:
 	Asserts that the position is a valid relative position. */
 	cBlockEntity * GetBlockEntityRel(Vector3i a_RelPos);
 
+	/** Sends the attached entity after pending block changes for this chunk. */
+	void QueueBlockEntityUpdate(cBlockEntity & a_Entity);
+
 	/** Returns true if the chunk should be ticked in the tick-thread.
 	Checks if there are any clients and if the always-tick flag is set */
 	bool ShouldBeTicked(void) const;

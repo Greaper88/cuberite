@@ -180,6 +180,8 @@ namespace
 	constexpr cItemSpawnEggHandler          ItemBeeSpawnEggHandler                    (E_ITEM_BEE_SPAWN_EGG);
 	constexpr cItemHoneyBottleHandler       ItemHoneyBottleHandler                    (E_ITEM_HONEY_BOTTLE);
 	constexpr cDefaultItemHandler           ItemHoneycombHandler                      (E_ITEM_HONEYCOMB);
+	constexpr cDefaultItemHandler           ItemKelpHandler                           (E_ITEM_KELP);
+	constexpr cItemSimpleFoodHandler        ItemDriedKelpHandler                      (E_ITEM_DRIED_KELP, cItemHandler::FoodInfo(1, 0.6));
 	constexpr cItemChestHandler             ItemChestHandler                           (E_BLOCK_CHEST);
 	constexpr cItemMinecartHandler          ItemChestMinecartHandler                   (E_ITEM_CHEST_MINECART);
 	constexpr cDefaultItemHandler           ItemChirpDiscHandler                       (E_ITEM_CHIRP_DISC);
@@ -875,6 +877,8 @@ const cItemHandler & cItemHandler::For(int a_ItemType)
 		case E_ITEM_BEE_SPAWN_EGG:                   return ItemBeeSpawnEggHandler;
 		case E_ITEM_HONEY_BOTTLE:                    return ItemHoneyBottleHandler;
 		case E_ITEM_HONEYCOMB:                       return ItemHoneycombHandler;
+		case E_ITEM_KELP:                            return ItemKelpHandler;
+		case E_ITEM_DRIED_KELP:                      return ItemDriedKelpHandler;
 		case E_ITEM_CHEST_MINECART:                  return ItemChestMinecartHandler;
 		case E_ITEM_CHIRP_DISC:                      return ItemChirpDiscHandler;
 		case E_ITEM_CHORUS_FRUIT:                    return ItemChorusFruitHandler;
@@ -1258,6 +1262,8 @@ char cItemHandler::GetMaxStackSize(void) const
 		case E_ITEM_GUNPOWDER:            return 64;
 		case E_ITEM_HEAD:                 return 64;
 		case E_ITEM_HONEYCOMB:           return 64;
+		case E_ITEM_KELP:                return 64;
+		case E_ITEM_DRIED_KELP:          return 64;
 		case E_ITEM_JUNGLE_DOOR:          return 64;
 		case E_ITEM_IRON:                 return 64;
 		case E_ITEM_IRON_DOOR:            return 64;

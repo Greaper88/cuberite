@@ -5,6 +5,7 @@
 #include "Globals.h"
 #include "NBTChunkSerializer.h"
 #include "BeeNBT.h"
+#include "CampfireNBT.h"
 #include "WorldFormat.h"
 #include "../BlockEntities/BeehiveEntity.h"
 #include "../Mobs/Bee.h"
@@ -24,6 +25,7 @@
 #include "../BlockEntities/BeaconEntity.h"
 #include "../BlockEntities/BedEntity.h"
 #include "../BlockEntities/BrewingstandEntity.h"
+#include "../BlockEntities/CampfireEntity.h"
 #include "../BlockEntities/ChestEntity.h"
 #include "../BlockEntities/CommandBlockEntity.h"
 #include "../BlockEntities/DispenserEntity.h"
@@ -434,7 +436,7 @@ public:
 				{
 					mWriter.BeginCompound("");
 					AddBasicTileEntity(a_Entity, "Campfire");
-					// The original cooking inventory and timers are retained by the paletted writer.
+					CampfireNBT::Write(mWriter, static_cast<const cCampfireEntity &>(*a_Entity), mDataVersion);
 					mWriter.EndCompound();
 				}
 				break;
