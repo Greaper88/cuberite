@@ -2,6 +2,7 @@
 #include "Globals.h"
 #include "../TestHelpers.h"
 #include "ChunkData.h"
+#include "BlockType.h"
 
 
 
@@ -175,6 +176,76 @@ static void Test()
 
 
 
+static void TestNamedStates()
+{
+	ChunkBlockData Data;
+	const ChunkLightData Light;
+	const size_t SectionY = 4;
+	const Vector3i Stairs{3, 65, 4};
+	const Vector3i Neighbor{4, 65, 4};
+	const auto StairsIndex = cChunkDef::MakeIndex(3, 1, 4);
+	const cNamedBlockState CaveAir{"minecraft:cave_air", {}};
+	const cNamedBlockState WetStairs{"minecraft:oak_stairs", {{"waterlogged", "true"}, {"facing", "west"}}};
+
+	// The section contains names even though the entire numeric projection is air.
+	ChunkBlockData::NamedIndices Indices{};
+	Data.SetNamedSection(SectionY, {CaveAir}, Indices);
+	TEST_EQUAL(Data.HasNamedSection(SectionY), true);
+	TEST_EQUAL(Data.GetSection(SectionY), nullptr);
+	TEST_EQUAL(*Data.GetNamedBlock(Neighbor), CaveAir);
+	TEST_EQUAL(Data.GetNamedBlock(SectionY - 1, StairsIndex), nullptr);
+	size_t SectionCount = 0;
+	ChunkDef_ForEachSection(Data, Light,
+	{
+		TEST_EQUAL(Y, SectionY);
+		++SectionCount;
+	});
+	TEST_EQUAL(SectionCount, 1u);
+
+	Data.SetBlock(Stairs, E_BLOCK_WOODEN_STAIRS);
+	Data.SetMeta(Stairs, 1);
+	Indices[StairsIndex] = 1;
+	Data.SetNamedSection(SectionY, {CaveAir, WetStairs}, Indices);
+	TEST_EQUAL(*Data.GetNamedBlock(SectionY, StairsIndex), WetStairs);
+
+	// Legacy no-op writes retain the exact state.
+	Data.SetBlock(Stairs, E_BLOCK_WOODEN_STAIRS);
+	Data.SetMeta(Stairs, 1);
+	TEST_EQUAL(*Data.GetNamedBlock(Stairs), WetStairs);
+
+	// Copies preserve names and are independent of later mutations.
+	ChunkBlockData Copy;
+	Copy.Assign(Data);
+	Copy.Assign(Copy);
+	Data.SetMeta(Stairs, 2);
+	TEST_EQUAL(Data.GetNamedBlock(Stairs), nullptr);
+	TEST_EQUAL(*Data.GetNamedBlock(Neighbor), CaveAir);
+	TEST_EQUAL(Copy.GetMeta(Stairs), 1);
+	TEST_EQUAL(*Copy.GetNamedBlock(Stairs), WetStairs);
+
+	// Bulk writes invalidate only the positions whose projected type or metadata changes.
+	cChunkDef::BlockTypes Blocks{};
+	cChunkDef::BlockNibbles Metas{};
+	Blocks[cChunkDef::MakeIndex(Stairs)] = E_BLOCK_WOODEN_STAIRS;
+	cChunkDef::PackNibble(Metas, cChunkDef::MakeIndex(Stairs), 1);
+	Blocks[cChunkDef::MakeIndex(Neighbor)] = E_BLOCK_STONE;
+	Copy.SetAll(Blocks, Metas);
+	TEST_EQUAL(*Copy.GetNamedBlock(Stairs), WetStairs);
+	TEST_EQUAL(Copy.GetNamedBlock(Neighbor), nullptr);
+	TEST_EQUAL(Copy.GetBlock(Neighbor), E_BLOCK_STONE);
+
+	ChunkBlockData::SectionType BlockSection;
+	std::fill(std::begin(BlockSection), std::end(BlockSection), E_BLOCK_DIRT);
+	ChunkBlockData::SectionMetaType MetaSection{};
+	Copy.SetSection(BlockSection, MetaSection, SectionY);
+	TEST_EQUAL(Copy.HasNamedSection(SectionY), false);
+}
+
+
+
+
+
 IMPLEMENT_TEST_MAIN("ChunkData Copies",
-	Test()
+	Test();
+	TestNamedStates();
 )

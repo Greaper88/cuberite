@@ -1,6 +1,7 @@
 add_executable(
 	PalettedAnvilTest
 	PalettedAnvilTest.cpp
+	${PROJECT_SOURCE_DIR}/src/ChunkData.cpp
 	${PROJECT_SOURCE_DIR}/src/WorldStorage/FastNBT.cpp
 	${PROJECT_SOURCE_DIR}/src/WorldStorage/PalettedAnvil.cpp
 )

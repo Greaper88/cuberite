@@ -1,0 +1,143 @@
+BlockTypePalette
+FileVersion	1
+CommonPrefix	minecraft:
+
+11198	bell	attachment	floor	facing	north	powered	true
+11199	bell	attachment	floor	facing	north	powered	false
+11200	bell	attachment	floor	facing	south	powered	true
+11201	bell	attachment	floor	facing	south	powered	false
+11202	bell	attachment	floor	facing	west	powered	true
+11203	bell	attachment	floor	facing	west	powered	false
+11204	bell	attachment	floor	facing	east	powered	true
+11205	bell	attachment	floor	facing	east	powered	false
+11206	bell	attachment	ceiling	facing	north	powered	true
+11207	bell	attachment	ceiling	facing	north	powered	false
+11208	bell	attachment	ceiling	facing	south	powered	true
+11209	bell	attachment	ceiling	facing	south	powered	false
+11210	bell	attachment	ceiling	facing	west	powered	true
+11211	bell	attachment	ceiling	facing	west	powered	false
+11212	bell	attachment	ceiling	facing	east	powered	true
+11213	bell	attachment	ceiling	facing	east	powered	false
+11214	bell	attachment	single_wall	facing	north	powered	true
+11215	bell	attachment	single_wall	facing	north	powered	false
+11216	bell	attachment	single_wall	facing	south	powered	true
+11217	bell	attachment	single_wall	facing	south	powered	false
+11218	bell	attachment	single_wall	facing	west	powered	true
+11219	bell	attachment	single_wall	facing	west	powered	false
+11220	bell	attachment	single_wall	facing	east	powered	true
+11221	bell	attachment	single_wall	facing	east	powered	false
+11222	bell	attachment	double_wall	facing	north	powered	true
+11223	bell	attachment	double_wall	facing	north	powered	false
+11224	bell	attachment	double_wall	facing	south	powered	true
+11225	bell	attachment	double_wall	facing	south	powered	false
+11226	bell	attachment	double_wall	facing	west	powered	true
+11227	bell	attachment	double_wall	facing	west	powered	false
+11228	bell	attachment	double_wall	facing	east	powered	true
+11229	bell	attachment	double_wall	facing	east	powered	false
+11230	lantern	hanging	true
+11231	lantern	hanging	false
+11232	campfire	facing	north	lit	true	signal_fire	true	waterlogged	true
+11233	campfire	facing	north	lit	true	signal_fire	true	waterlogged	false
+11234	campfire	facing	north	lit	true	signal_fire	false	waterlogged	true
+11235	campfire	facing	north	lit	true	signal_fire	false	waterlogged	false
+11236	campfire	facing	north	lit	false	signal_fire	true	waterlogged	true
+11237	campfire	facing	north	lit	false	signal_fire	true	waterlogged	false
+11238	campfire	facing	north	lit	false	signal_fire	false	waterlogged	true
+11239	campfire	facing	north	lit	false	signal_fire	false	waterlogged	false
+11240	campfire	facing	south	lit	true	signal_fire	true	waterlogged	true
+11241	campfire	facing	south	lit	true	signal_fire	true	waterlogged	false
+11242	campfire	facing	south	lit	true	signal_fire	false	waterlogged	true
+11243	campfire	facing	south	lit	true	signal_fire	false	waterlogged	false
+11244	campfire	facing	south	lit	false	signal_fire	true	waterlogged	true
+11245	campfire	facing	south	lit	false	signal_fire	true	waterlogged	false
+11246	campfire	facing	south	lit	false	signal_fire	false	waterlogged	true
+11247	campfire	facing	south	lit	false	signal_fire	false	waterlogged	false
+11248	campfire	facing	west	lit	true	signal_fire	true	waterlogged	true
+11249	campfire	facing	west	lit	true	signal_fire	true	waterlogged	false
+11250	campfire	facing	west	lit	true	signal_fire	false	waterlogged	true
+11251	campfire	facing	west	lit	true	signal_fire	false	waterlogged	false
+11252	campfire	facing	west	lit	false	signal_fire	true	waterlogged	true
+11253	campfire	facing	west	lit	false	signal_fire	true	waterlogged	false
+11254	campfire	facing	west	lit	false	signal_fire	false	waterlogged	true
+11255	campfire	facing	west	lit	false	signal_fire	false	waterlogged	false
+11256	campfire	facing	east	lit	true	signal_fire	true	waterlogged	true
+11257	campfire	facing	east	lit	true	signal_fire	true	waterlogged	false
+11258	campfire	facing	east	lit	true	signal_fire	false	waterlogged	true
+11259	campfire	facing	east	lit	true	signal_fire	false	waterlogged	false
+11260	campfire	facing	east	lit	false	signal_fire	true	waterlogged	true
+11261	campfire	facing	east	lit	false	signal_fire	true	waterlogged	false
+11262	campfire	facing	east	lit	false	signal_fire	false	waterlogged	true
+11263	campfire	facing	east	lit	false	signal_fire	false	waterlogged	false
+11264	sweet_berry_bush	age	0
+11265	sweet_berry_bush	age	1
+11266	sweet_berry_bush	age	2
+11267	sweet_berry_bush	age	3
+11268	structure_block	mode	save
+11269	structure_block	mode	load
+11270	structure_block	mode	corner
+11271	structure_block	mode	data
+11272	jigsaw	facing	north
+11273	jigsaw	facing	east
+11274	jigsaw	facing	south
+11275	jigsaw	facing	west
+11276	jigsaw	facing	up
+11277	jigsaw	facing	down
+11278	composter	level	0
+11279	composter	level	1
+11280	composter	level	2
+11281	composter	level	3
+11282	composter	level	4
+11283	composter	level	5
+11284	composter	level	6
+11285	composter	level	7
+11286	composter	level	8
+11287	bee_nest	facing	north	honey_level	0
+11288	bee_nest	facing	north	honey_level	1
+11289	bee_nest	facing	north	honey_level	2
+11290	bee_nest	facing	north	honey_level	3
+11291	bee_nest	facing	north	honey_level	4
+11292	bee_nest	facing	north	honey_level	5
+11293	bee_nest	facing	south	honey_level	0
+11294	bee_nest	facing	south	honey_level	1
+11295	bee_nest	facing	south	honey_level	2
+11296	bee_nest	facing	south	honey_level	3
+11297	bee_nest	facing	south	honey_level	4
+11298	bee_nest	facing	south	honey_level	5
+11299	bee_nest	facing	west	honey_level	0
+11300	bee_nest	facing	west	honey_level	1
+11301	bee_nest	facing	west	honey_level	2
+11302	bee_nest	facing	west	honey_level	3
+11303	bee_nest	facing	west	honey_level	4
+11304	bee_nest	facing	west	honey_level	5
+11305	bee_nest	facing	east	honey_level	0
+11306	bee_nest	facing	east	honey_level	1
+11307	bee_nest	facing	east	honey_level	2
+11308	bee_nest	facing	east	honey_level	3
+11309	bee_nest	facing	east	honey_level	4
+11310	bee_nest	facing	east	honey_level	5
+11311	beehive	facing	north	honey_level	0
+11312	beehive	facing	north	honey_level	1
+11313	beehive	facing	north	honey_level	2
+11314	beehive	facing	north	honey_level	3
+11315	beehive	facing	north	honey_level	4
+11316	beehive	facing	north	honey_level	5
+11317	beehive	facing	south	honey_level	0
+11318	beehive	facing	south	honey_level	1
+11319	beehive	facing	south	honey_level	2
+11320	beehive	facing	south	honey_level	3
+11321	beehive	facing	south	honey_level	4
+11322	beehive	facing	south	honey_level	5
+11323	beehive	facing	west	honey_level	0
+11324	beehive	facing	west	honey_level	1
+11325	beehive	facing	west	honey_level	2
+11326	beehive	facing	west	honey_level	3
+11327	beehive	facing	west	honey_level	4
+11328	beehive	facing	west	honey_level	5
+11329	beehive	facing	east	honey_level	0
+11330	beehive	facing	east	honey_level	1
+11331	beehive	facing	east	honey_level	2
+11332	beehive	facing	east	honey_level	3
+11333	beehive	facing	east	honey_level	4
+11334	beehive	facing	east	honey_level	5
+11335	honey_block
+11336	honeycomb_block

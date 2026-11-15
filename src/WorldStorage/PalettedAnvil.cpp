@@ -1,5 +1,6 @@
 #include "Globals.h"
 #include "PalettedAnvil.h"
+#include "ChunkData.h"
 #include "FastNBT.h"
 
 
@@ -8,6 +9,9 @@
 
 namespace
 {
+	// Java 1.13 reads the light arrays directly. Java 1.14 introduced the lighting engine.
+	constexpr int LastInlineLightingDataVersion = 1631;
+
 	int RequireTag(const cParsedNBT & a_NBT, int a_Parent, const AString & a_Name, eTagType a_Type)
 	{
 		const auto Tag = a_NBT.FindChildByName(a_Parent, a_Name);
@@ -133,6 +137,144 @@ namespace
 		return Words;
 	}
 
+	void WriteBlock(cFastNBTWriter & a_Writer, const PalettedAnvil::Block & a_Block)
+	{
+		a_Writer.BeginCompound("");
+		a_Writer.AddString("Name", a_Block.Name);
+		if (!a_Block.Properties.empty())
+		{
+			a_Writer.BeginCompound("Properties");
+			for (const auto & [Name, Value] : a_Block.Properties)
+			{
+				a_Writer.AddString(Name, Value);
+			}
+			a_Writer.EndCompound();
+		}
+		a_Writer.EndCompound();
+	}
+
+	void RewritePalette(
+		cFastNBTWriter & a_Writer,
+		const cParsedNBT & a_Source,
+		int a_SourcePalette,
+		const PalettedAnvil::Section * a_Original,
+		const PalettedAnvil::Section & a_Replacement
+	)
+	{
+		const auto Words = PackIndices(a_Replacement);
+		const auto Compare = [](const PalettedAnvil::Block * a_Left, const PalettedAnvil::Block * a_Right)
+		{
+			return std::tie(a_Left->Name, a_Left->Properties) < std::tie(a_Right->Name, a_Right->Properties);
+		};
+		std::map<const PalettedAnvil::Block *, int, decltype(Compare)> OriginalEntries(Compare);
+		if (a_Original != nullptr)
+		{
+			auto Tag = a_Source.GetFirstChild(a_SourcePalette);
+			for (const auto & Block : a_Original->Palette)
+			{
+				OriginalEntries.try_emplace(&Block, Tag);
+				Tag = a_Source.GetNextSibling(Tag);
+			}
+		}
+
+		a_Writer.BeginList("Palette", TAG_Compound);
+		for (const auto & Block : a_Replacement.Palette)
+		{
+			const auto Original = OriginalEntries.find(&Block);
+			if (Original == OriginalEntries.end())
+			{
+				WriteBlock(a_Writer, Block);
+			}
+			else
+			{
+				a_Writer.CopyTag(a_Source, Original->second);
+			}
+		}
+		a_Writer.EndList();
+		a_Writer.AddLongArray("BlockStates", Words.data(), Words.size());
+	}
+
+	void WriteLightArray(
+		cFastNBTWriter & a_Writer,
+		const AString & a_Name,
+		const ChunkLightData::LightArray * a_Values,
+		unsigned char a_Default,
+		const cParsedNBT * a_Source = nullptr,
+		int a_SectionTag = -1
+	)
+	{
+		const auto SourceTag = (a_Source == nullptr) ? -1 : a_Source->FindChildByName(a_SectionTag, a_Name);
+		if ((a_Source != nullptr) && (SourceTag >= 0) && (a_Source->GetType(SourceTag) == TAG_ByteArray) &&
+			(a_Source->GetDataLength(SourceTag) == ChunkLightData::SectionLightCount))
+		{
+			a_Writer.CopyTag(*a_Source, SourceTag);
+		}
+		else if (a_Values != nullptr)
+		{
+			a_Writer.AddByteArray(a_Name, reinterpret_cast<const char *>(a_Values->data()), a_Values->size());
+		}
+		else
+		{
+			a_Writer.AddByteArray(a_Name, ChunkLightData::SectionLightCount, a_Default);
+		}
+	}
+
+	void WriteInlineLight(
+		cFastNBTWriter & a_Writer,
+		size_t a_Y,
+		const ChunkLightData * a_LightData,
+		const cParsedNBT * a_Source = nullptr,
+		int a_SectionTag = -1
+	)
+	{
+		if (a_LightData != nullptr)
+		{
+			WriteLightArray(a_Writer, "BlockLight", a_LightData->GetBlockLightSection(a_Y), ChunkLightData::DefaultBlockLightValue);
+			WriteLightArray(a_Writer, "SkyLight", a_LightData->GetSkyLightSection(a_Y), ChunkLightData::DefaultSkyLightValue);
+		}
+		else
+		{
+			WriteLightArray(a_Writer, "BlockLight", nullptr, ChunkLightData::DefaultBlockLightValue, a_Source, a_SectionTag);
+			WriteLightArray(a_Writer, "SkyLight", nullptr, ChunkLightData::DefaultSkyLightValue, a_Source, a_SectionTag);
+		}
+	}
+
+	void WriteNewSection(
+		cFastNBTWriter & a_Writer,
+		size_t a_Y,
+		const PalettedAnvil::Section & a_Section,
+		bool a_InlineLighting,
+		const ChunkLightData * a_LightData
+	)
+	{
+		a_Writer.BeginCompound("");
+		a_Writer.AddByte("Y", static_cast<unsigned char>(a_Y));
+		PalettedAnvil::WriteBlocks(a_Writer, a_Section);
+		if (a_InlineLighting)
+		{
+			WriteInlineLight(a_Writer, a_Y, a_LightData);
+		}
+		a_Writer.EndCompound();
+	}
+
+	void CopyOtherHeightmaps(cFastNBTWriter & a_Writer, const cParsedNBT & a_Source, int a_Heightmaps)
+	{
+		constexpr std::array<std::string_view, 7> DerivedHeightmaps
+		{
+			"WORLD_SURFACE_WG", "OCEAN_FLOOR_WG", "LIGHT_BLOCKING", "MOTION_BLOCKING",
+			"MOTION_BLOCKING_NO_LEAVES", "OCEAN_FLOOR", "WORLD_SURFACE",
+		};
+		a_Writer.BeginCompound("Heightmaps");
+		for (int Tag = a_Source.GetFirstChild(a_Heightmaps); Tag >= 0; Tag = a_Source.GetNextSibling(Tag))
+		{
+			const auto Name = a_Source.GetName(Tag);
+			if (std::find(DerivedHeightmaps.begin(), DerivedHeightmaps.end(), Name) == DerivedHeightmaps.end())
+			{
+				a_Writer.CopyTag(a_Source, Tag);
+			}
+		}
+		a_Writer.EndCompound();
+	}
 }
 
 
@@ -178,21 +320,76 @@ void PalettedAnvil::WriteBlocks(cFastNBTWriter & a_Writer, const Section & a_Sec
 	a_Writer.BeginList("Palette", TAG_Compound);
 	for (const auto & Block : a_Section.Palette)
 	{
-		a_Writer.BeginCompound("");
-		a_Writer.AddString("Name", Block.Name);
-		if (!Block.Properties.empty())
-		{
-			a_Writer.BeginCompound("Properties");
-			for (const auto & [Name, Value] : Block.Properties)
-			{
-				a_Writer.AddString(Name, Value);
-			}
-			a_Writer.EndCompound();
-		}
-		a_Writer.EndCompound();
+		WriteBlock(a_Writer, Block);
 	}
 	a_Writer.EndList();
 	a_Writer.AddLongArray("BlockStates", Words.data(), Words.size());
+}
+
+
+
+
+
+ContiguousByteBuffer PalettedAnvil::WriteChunk(
+	int a_DataVersion,
+	cChunkCoords a_Coords,
+	const std::map<size_t, Section> & a_Sections,
+	const std::vector<Int32> & a_Biomes,
+	Int64 a_LastUpdate,
+	const ChunkLightData * a_LightData
+)
+{
+	const auto ExpectedBiomes = BiomeCount(a_DataVersion);
+	if ((ExpectedBiomes == 0) || (a_Biomes.size() != ExpectedBiomes))
+	{
+		throw std::runtime_error("Cannot write an Anvil chunk with an unsupported data version or biome array");
+	}
+	const auto InlineLighting = (a_DataVersion <= LastInlineLightingDataVersion);
+
+	cFastNBTWriter Writer;
+	Writer.AddInt("DataVersion", a_DataVersion);
+	Writer.BeginCompound("Level");
+	Writer.AddInt("xPos", a_Coords.m_ChunkX);
+	Writer.AddInt("zPos", a_Coords.m_ChunkZ);
+	Writer.AddLong("LastUpdate", a_LastUpdate);
+	Writer.AddLong("InhabitedTime", 0);
+	Writer.AddString("Status", InlineLighting ? "postprocessed" : "full");
+	Writer.AddIntArray("Biomes", a_Biomes.data(), a_Biomes.size());
+
+	Writer.BeginList("Sections", TAG_Compound);
+	for (const auto & [Y, Section] : a_Sections)
+	{
+		if (Y >= cChunkDef::NumSections)
+		{
+			throw std::runtime_error("Anvil terrain section exceeds world height");
+		}
+		WriteNewSection(Writer, Y, Section, InlineLighting, a_LightData);
+	}
+	Writer.EndList();
+
+	Writer.BeginList("Entities", TAG_Compound);
+	Writer.EndList();
+	Writer.BeginList("TileEntities", TAG_Compound);
+	Writer.EndList();
+	Writer.BeginList("TileTicks", TAG_Compound);
+	Writer.EndList();
+	Writer.BeginList("LiquidTicks", TAG_Compound);
+	Writer.EndList();
+	Writer.BeginList("PostProcessing", TAG_List);
+	Writer.EndList();
+
+	// Vanilla computes these from the terrain on load.
+	Writer.BeginCompound("Heightmaps");
+	Writer.EndCompound();
+	Writer.BeginCompound("Structures");
+	Writer.BeginCompound("Starts");
+	Writer.EndCompound();
+	Writer.BeginCompound("References");
+	Writer.EndCompound();
+	Writer.EndCompound();
+	Writer.EndCompound();
+	Writer.Finish();
+	return ContiguousByteBuffer(Writer.GetResult());
 }
 
 
@@ -284,14 +481,32 @@ const PalettedAnvil::Section * PalettedAnvil::Chunk::GetSection(size_t a_Section
 
 ContiguousByteBuffer PalettedAnvil::Chunk::Encode() const
 {
+	return m_OriginalNBT;
+}
+
+
+
+
+
+ContiguousByteBuffer PalettedAnvil::Chunk::Encode(
+	const std::map<size_t, Section> & a_Changes,
+	const ChunkLightData * a_LightData
+) const
+{
+	if (a_Changes.empty())
+	{
+		return m_OriginalNBT;
+	}
+	if (a_Changes.rbegin()->first >= cChunkDef::NumSections)
+	{
+		throw std::runtime_error("Anvil terrain section exceeds world height");
+	}
+
 	const cParsedNBT NBT(m_OriginalNBT);
 	const auto Root = NBT.GetRoot();
 	const auto Level = NBT.FindChildByName(Root, "Level");
 	const auto Sections = NBT.FindChildByName(Level, "Sections");
-	if (m_Sections.empty())
-	{
-		return m_OriginalNBT;
-	}
+	const auto InlineLighting = (m_DataVersion <= LastInlineLightingDataVersion);
 
 	cFastNBTWriter Writer(NBT.GetName(Root));
 	for (int Tag = NBT.GetFirstChild(Root); Tag >= 0; Tag = NBT.GetNextSibling(Tag))
@@ -305,6 +520,16 @@ ContiguousByteBuffer PalettedAnvil::Chunk::Encode() const
 		Writer.BeginCompound("Level");
 		for (int Child = NBT.GetFirstChild(Level); Child >= 0; Child = NBT.GetNextSibling(Child))
 		{
+			const auto Name = NBT.GetName(Child);
+			if ((Name == "isLightOn") && !InlineLighting)
+			{
+				continue;
+			}
+			if ((Name == "Heightmaps") && (NBT.GetType(Child) == TAG_Compound))
+			{
+				CopyOtherHeightmaps(Writer, NBT, Child);
+				continue;
+			}
 			if (Child != Sections)
 			{
 				Writer.CopyTag(NBT, Child);
@@ -312,30 +537,50 @@ ContiguousByteBuffer PalettedAnvil::Chunk::Encode() const
 			}
 
 			Writer.BeginList("Sections", TAG_Compound);
+			std::array<bool, cChunkDef::NumSections> Replaced{};
 			for (int Entry = NBT.GetFirstChild(Sections); Entry >= 0; Entry = NBT.GetNextSibling(Entry))
 			{
 				const auto Y = NBT.GetByte(NBT.FindChildByName(Entry, "Y"));
-				const auto Terrain = GetSection(Y);
-				if (Terrain == nullptr)
+				const auto Existing = GetSection(Y);
+				const auto Replacement = a_Changes.find(Y);
+				const auto ReplaceTerrain = (Replacement != a_Changes.end());
+				const auto ReplaceLighting = InlineLighting && (ReplaceTerrain || ((Existing != nullptr) && (a_LightData != nullptr)));
+				if (!ReplaceTerrain && !ReplaceLighting)
 				{
 					Writer.CopyTag(NBT, Entry);
 					continue;
 				}
-				const auto BlockStates = NBT.FindChildByName(Entry, "BlockStates");
+
 				Writer.BeginCompound("");
 				for (int Field = NBT.GetFirstChild(Entry); Field >= 0; Field = NBT.GetNextSibling(Field))
 				{
-					if (Field == BlockStates)
+					const auto FieldName = NBT.GetName(Field);
+					if (
+						(ReplaceTerrain && ((FieldName == "Palette") || (FieldName == "BlockStates"))) ||
+						(ReplaceLighting && ((FieldName == "BlockLight") || (FieldName == "SkyLight")))
+					)
 					{
-						const auto Words = PackIndices(*Terrain);
-						Writer.AddLongArray("BlockStates", Words.data(), Words.size());
+						continue;
 					}
-					else
-					{
-						Writer.CopyTag(NBT, Field);
-					}
+					Writer.CopyTag(NBT, Field);
+				}
+				if (ReplaceTerrain)
+				{
+					RewritePalette(Writer, NBT, NBT.FindChildByName(Entry, "Palette"), Existing, Replacement->second);
+					Replaced[Y] = true;
+				}
+				if (ReplaceLighting)
+				{
+					WriteInlineLight(Writer, Y, a_LightData, &NBT, Entry);
 				}
 				Writer.EndCompound();
+			}
+			for (const auto & [Y, Section] : a_Changes)
+			{
+				if (!Replaced[Y])
+				{
+					WriteNewSection(Writer, Y, Section, InlineLighting, a_LightData);
+				}
 			}
 			Writer.EndList();
 		}

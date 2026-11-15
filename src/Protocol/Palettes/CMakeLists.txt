@@ -1,6 +1,7 @@
 target_sources(
 	${CMAKE_PROJECT_NAME} PRIVATE
 
+	NamedBlockPalette.cpp
 	Palette_1_13.cpp
 	Palette_1_13_1.cpp
 	Palette_1_14.cpp
@@ -8,6 +9,7 @@ target_sources(
 	Palette_1_16.cpp
 	Upgrade.cpp
 
+	NamedBlockPalette.h
 	Palette_1_13.h
 	Palette_1_13_1.h
 	Palette_1_14.h

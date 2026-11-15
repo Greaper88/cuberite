@@ -114,7 +114,7 @@ void cMapManager::LoadMapData(void)
 {
 	cCSLock Lock(m_CS);
 
-	cIDCountSerializer IDSerializer(m_World->GetDataPath());
+	cIDCountSerializer IDSerializer(m_World->GetEngineDataPath());
 
 	if (!IDSerializer.Load())
 	{
@@ -129,7 +129,7 @@ void cMapManager::LoadMapData(void)
 	{
 		cMap Map(i, m_World);
 
-		cMapSerializer Serializer(m_World->GetDataPath(), &Map);
+		cMapSerializer Serializer(m_World->GetEngineDataPath(), &Map);
 
 		if (!Serializer.Load())
 		{
@@ -153,7 +153,7 @@ void cMapManager::SaveMapData(void)
 		return;
 	}
 
-	cIDCountSerializer IDSerializer(m_World->GetDataPath());
+	cIDCountSerializer IDSerializer(m_World->GetEngineDataPath());
 
 	IDSerializer.SetMapCount(static_cast<unsigned>(m_MapData.size()));
 
@@ -169,7 +169,7 @@ void cMapManager::SaveMapData(void)
 
 		if (Map.m_Dirty)
 		{
-			cMapSerializer Serializer(m_World->GetDataPath(), &Map);
+			cMapSerializer Serializer(m_World->GetEngineDataPath(), &Map);
 
 			if (Serializer.Save())
 			{

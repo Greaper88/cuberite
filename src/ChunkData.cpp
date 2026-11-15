@@ -171,8 +171,112 @@ void ChunkDataStore<ElementType, ElementCount, DefaultValue>::SetAll(const Eleme
 
 void ChunkBlockData::Assign(const ChunkBlockData & a_Other)
 {
+	if (&a_Other == this)
+	{
+		return;
+	}
+
 	m_Blocks.Assign(a_Other.m_Blocks);
 	m_Metas.Assign(a_Other.m_Metas);
+	for (size_t Y = 0; Y != cChunkDef::NumSections; ++Y)
+	{
+		const auto & Other = a_Other.m_NamedSections[Y];
+		m_NamedSections[Y] = (Other == nullptr) ? nullptr : std::make_unique<NamedSection>(*Other);
+	}
+}
+
+
+
+
+
+const cNamedBlockState * ChunkBlockData::GetNamedBlock(const Vector3i a_Position) const
+{
+	const auto [Section, Index] = IndicesFromRelPos(a_Position);
+	return GetNamedBlock(Section, Index);
+}
+
+
+
+
+
+const cNamedBlockState * ChunkBlockData::GetNamedBlock(const size_t a_Y, const size_t a_Index) const
+{
+	ASSERT(a_Y < cChunkDef::NumSections);
+	ASSERT(a_Index < SectionBlockCount);
+
+	const auto & Section = m_NamedSections[a_Y];
+	if (Section == nullptr)
+	{
+		return nullptr;
+	}
+
+	const auto Index = Section->Indices[a_Index];
+	return (Index == MissingNamedState) ? nullptr : &Section->Palette[Index];
+}
+
+
+
+
+
+void ChunkBlockData::SetNamedSection(const size_t a_Y, std::vector<cNamedBlockState> a_Palette, const NamedIndices & a_Indices)
+{
+	ASSERT(a_Y < cChunkDef::NumSections);
+	ASSERT(a_Palette.size() <= SectionBlockCount);
+	ASSERT(std::all_of(a_Indices.begin(), a_Indices.end(), [&](const UInt16 Index) { return Index < a_Palette.size(); }));
+
+	auto Section = std::make_unique<NamedSection>();
+	Section->Palette = std::move(a_Palette);
+	Section->Indices = a_Indices;
+	m_NamedSections[a_Y] = std::move(Section);
+}
+
+
+
+
+
+void ChunkBlockData::ClearNamedBlock(const size_t a_Y, const size_t a_Index)
+{
+	auto & Section = m_NamedSections[a_Y];
+	if (Section->Indices[a_Index] == MissingNamedState)
+	{
+		return;
+	}
+
+	Section->Indices[a_Index] = MissingNamedState;
+	if (--Section->Remaining == 0)
+	{
+		Section.reset();
+	}
+}
+
+
+
+
+
+void ChunkBlockData::SetBlock(const Vector3i a_Position, const BLOCKTYPE a_Block)
+{
+	const auto [Section, Index] = IndicesFromRelPos(a_Position);
+	const bool ProjectionChanged = HasNamedSection(Section) && (m_Blocks.Get(a_Position) != a_Block);
+	m_Blocks.Set(a_Position, a_Block);
+	if (ProjectionChanged)
+	{
+		ClearNamedBlock(Section, Index);
+	}
+}
+
+
+
+
+
+void ChunkBlockData::SetMeta(const Vector3i a_Position, const NIBBLETYPE a_Meta)
+{
+	const auto [Section, Index] = IndicesFromRelPos(a_Position);
+	const bool ProjectionChanged = HasNamedSection(Section) && (m_Metas.Get(a_Position) != a_Meta);
+	m_Metas.Set(a_Position, a_Meta);
+	if (ProjectionChanged)
+	{
+		ClearNamedBlock(Section, Index);
+	}
 }
 
 
@@ -181,8 +285,14 @@ void ChunkBlockData::Assign(const ChunkBlockData & a_Other)
 
 void ChunkBlockData::SetAll(const cChunkDef::BlockTypes & a_BlockSource, const cChunkDef::BlockNibbles & a_MetaSource)
 {
-	m_Blocks.SetAll(a_BlockSource);
-	m_Metas.SetAll(a_MetaSource);
+	for (size_t Y = 0; Y != cChunkDef::NumSections; ++Y)
+	{
+		SetSection(
+			*reinterpret_cast<const SectionType *>(a_BlockSource + Y * SectionBlockCount),
+			*reinterpret_cast<const SectionMetaType *>(a_MetaSource + Y * SectionMetaCount),
+			Y
+		);
+	}
 }
 
 
@@ -191,6 +301,21 @@ void ChunkBlockData::SetAll(const cChunkDef::BlockTypes & a_BlockSource, const c
 
 void ChunkBlockData::SetSection(const SectionType & a_BlockSource, const SectionMetaType & a_MetaSource, const size_t a_Y)
 {
+	if (HasNamedSection(a_Y))
+	{
+		const auto OldBlocks = GetSection(a_Y);
+		const auto OldMetas = GetMetaSection(a_Y);
+		for (size_t Index = 0; (Index < SectionBlockCount) && HasNamedSection(a_Y); ++Index)
+		{
+			const auto OldBlock = (OldBlocks == nullptr) ? DefaultValue : (*OldBlocks)[Index];
+			const auto OldMeta = (OldMetas == nullptr) ? DefaultMetaValue : cChunkDef::ExpandNibble(OldMetas->data(), Index);
+			if ((OldBlock != a_BlockSource[Index]) || (OldMeta != cChunkDef::ExpandNibble(a_MetaSource, Index)))
+			{
+				ClearNamedBlock(a_Y, Index);
+			}
+		}
+	}
+
 	m_Blocks.SetSection(a_BlockSource, a_Y);
 	m_Metas.SetSection(a_MetaSource, a_Y);
 }

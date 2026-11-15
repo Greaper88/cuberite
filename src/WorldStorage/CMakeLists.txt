@@ -12,6 +12,7 @@ target_sources(
 	ScoreboardSerializer.cpp
 	StatisticsSerializer.cpp
 	WSSAnvil.cpp
+	WSSPalettedAnvil.cpp
 	WorldFormat.cpp
 	WorldStorage.cpp
 
@@ -26,6 +27,7 @@ target_sources(
 	ScoreboardSerializer.h
 	StatisticsSerializer.h
 	WSSAnvil.h
+	WSSPalettedAnvil.h
 	WorldFormat.h
 	WorldStorage.h
 )

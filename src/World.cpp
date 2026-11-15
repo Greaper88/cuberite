@@ -219,12 +219,14 @@ cWorld::cWorld(
 	LOGD("cWorld::cWorld(\"%s\")", a_WorldName);
 
 	const auto StorageFormat = SelectWorldStorageFormat(m_DataPath);
-	cFile::CreateFolderRecursive(m_DataPath);
+	const bool IsPaletted = StorageFormat.Format == eWorldStorageFormat::PalettedAnvil;
+	m_EngineDataPath = IsPaletted ? m_DataPath + "/cuberite" : m_DataPath;
+	cFile::CreateFolderRecursive(m_EngineDataPath);
 
 	m_ChunkMap.TrackInDeadlockDetect(a_DeadlockDetect, m_WorldName);
 
 	// Load the scoreboard
-	cScoreboardSerializer Serializer(m_DataPath, &m_Scoreboard);
+	cScoreboardSerializer Serializer(m_EngineDataPath, &m_Scoreboard);
 	Serializer.Load();
 
 	// Track the CSs used by this world in the deadlock detector:
@@ -275,6 +277,18 @@ cWorld::cWorld(
 		m_SpawnX = IniFile.GetValueI("SpawnPosition", "X", m_SpawnX);
 		m_SpawnY = IniFile.GetValueI("SpawnPosition", "Y", m_SpawnY);
 		m_SpawnZ = IniFile.GetValueI("SpawnPosition", "Z", m_SpawnZ);
+	}
+
+	else if (IsPaletted && (GetDimension() == dimOverworld) && StorageFormat.Spawn.has_value())
+	{
+		m_IsSpawnExplicitlySet = true;
+		const auto Pos = *StorageFormat.Spawn;
+		m_SpawnX = Pos.x;
+		m_SpawnY = Pos.y;
+		m_SpawnZ = Pos.z;
+		IniFile.SetValueI("SpawnPosition", "X", Pos.x);
+		IniFile.SetValueI("SpawnPosition", "Y", Pos.y);
+		IniFile.SetValueI("SpawnPosition", "Z", Pos.z);
 	}
 
 	m_StorageSchema               = IniFile.GetValueSet ("Storage",       "Schema",                      m_StorageSchema);
@@ -425,6 +439,12 @@ cWorld::cWorld(
 	m_SimulatorManager->RegisterSimulator(m_SandSimulator.get(), 1);
 	m_SimulatorManager->RegisterSimulator(m_FireSimulator.get(), 1);
 
+	if (IsPaletted && StorageFormat.Seed.has_value() && !IniFile.HasValue("Seed", "Seed"))
+	{
+		// The current generator uses a 32-bit seed. Keep the original 64-bit seed in level.dat.
+		const auto Seed = static_cast<UInt32>(*StorageFormat.Seed);
+		IniFile.SetValueI("Seed", "Seed", static_cast<int>(static_cast<Int64>(Seed) - ((Seed > 0x7fffffff) ? (Int64{1} << 32) : 0)));
+	}
 	m_Storage.Initialize(*this, StorageFormat, m_StorageSchema, m_StorageCompressionFactor);
 	m_Generator.Initialize(m_GeneratorCallbacks, m_GeneratorCallbacks, IniFile);
 
@@ -1034,7 +1054,7 @@ void cWorld::Stop(cDeadlockDetect & a_DeadlockDetect)
 	if (IsSavingEnabled())
 	{
 		// Unload the scoreboard
-		cScoreboardSerializer Serializer(m_DataPath, &m_Scoreboard);
+		cScoreboardSerializer Serializer(m_EngineDataPath, &m_Scoreboard);
 		Serializer.Save();
 
 		m_MapManager.SaveMapData();

@@ -2287,6 +2287,15 @@ void cClientHandle::SendBlockBreakAnim(UInt32 a_EntityID, Vector3i a_BlockPos, c
 
 void cClientHandle::SendBlockChange(Vector3i a_BlockPos, BLOCKTYPE a_BlockType, NIBBLETYPE a_BlockMeta)
 {
+	SendBlockChangeNamed(a_BlockPos, a_BlockType, a_BlockMeta, nullptr);
+}
+
+
+
+
+
+void cClientHandle::SendBlockChangeNamed(Vector3i a_BlockPos, BLOCKTYPE a_BlockType, NIBBLETYPE a_BlockMeta, const cNamedBlockState * a_Named)
+{
 	auto ChunkCoords = cChunkDef::BlockToChunk(a_BlockPos);
 
 	// Do not send block changes in chunks that weren't sent to the client yet:
@@ -2294,7 +2303,7 @@ void cClientHandle::SendBlockChange(Vector3i a_BlockPos, BLOCKTYPE a_BlockType, 
 	if (std::find(m_SentChunks.begin(), m_SentChunks.end(), ChunkCoords) != m_SentChunks.end())
 	{
 		Lock.Unlock();
-		m_Protocol->SendBlockChange(a_BlockPos, a_BlockType, a_BlockMeta);
+		m_Protocol->SendBlockChange(a_BlockPos, a_BlockType, a_BlockMeta, a_Named);
 	}
 }
 

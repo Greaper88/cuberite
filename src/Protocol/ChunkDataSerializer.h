@@ -65,7 +65,7 @@ private:
 	inline void Serialize107(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.9
 	template <auto Palette>
 	inline void Serialize110(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.9.4 - 1.12.2
-	template <auto Palette>
+	template <auto Palette, UInt32 Protocol>
 	inline void Serialize393(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.13 - 1.13.2
 	inline void Serialize477(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);  // Release 1.14 - 1.14.4
 	void Serialize578(int a_ChunkX, int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap);
@@ -73,8 +73,14 @@ private:
 
 	/** Writes all blocks in a chunk section into a series of Int64.
 	Writes start from the bit directly subsequent to the previous write's end, possibly crossing over to the next Int64. */
-	template <auto Palette>
-	inline void WriteBlockSectionSeamless(const ChunkBlockData::BlockArray * a_Blocks, const ChunkBlockData::MetaArray * a_Metas, UInt8 a_BitsPerEntry);
+	template <auto Palette, UInt32 Protocol = 0>
+	inline void WriteBlockSectionSeamless(
+		const ChunkBlockData::BlockArray * a_Blocks,
+		const ChunkBlockData::MetaArray * a_Metas,
+		UInt8 a_BitsPerEntry,
+		const ChunkBlockData * a_ChunkData = nullptr,
+		size_t a_SectionY = 0
+	);
 
 	/** Copies all lights in a chunk section into the packet, block light followed immediately by sky light. */
 	inline void WriteLightSectionGrouped(const ChunkLightData::LightArray * a_BlockLights, const ChunkLightData::LightArray * a_SkyLights);

@@ -119,7 +119,7 @@ cPlayer::cPlayer(const std::shared_ptr<cClientHandle> & a_Client) :
 	m_BodyStance(BodyStanceStanding(*this)),
 	m_Inventory(*this),
 	m_EnderChestContents(9, 3),
-	m_DefaultWorldPath(cRoot::Get()->GetDefaultWorld()->GetDataPath()),
+	m_DefaultWorldPath(cRoot::Get()->GetDefaultWorld()->GetEngineDataPath()),
 	m_ClientHandle(a_Client),
 	m_NormalMaxSpeed(1.0),
 	m_SprintingMaxSpeed(1.3),

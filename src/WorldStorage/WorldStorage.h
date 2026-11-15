@@ -63,7 +63,7 @@ public:
 	void QueueSaveChunk(int a_ChunkX, int a_ChunkZ);
 
 	/** Initializes the selected storage schema, ready to be started. */
-	void Initialize(cWorld & a_World, eWorldStorageFormat a_Format, const AString & a_StorageSchemaName, int a_StorageCompressionFactor);
+	void Initialize(cWorld & a_World, const cWorldStorageFormat & a_Format, const AString & a_StorageSchemaName, int a_StorageCompressionFactor);
 	void Stop(void);  // Hide the cIsThread's Stop() method, we need to signal the event
 	void WaitForFinish(void);
 	void WaitForLoadQueueEmpty(void);

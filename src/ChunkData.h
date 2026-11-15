@@ -11,6 +11,7 @@
 
 #include "FunctionRef.h"
 #include "ChunkDef.h"
+#include "NamedBlockState.h"
 
 
 
@@ -64,11 +65,26 @@ public:
 
 	using SectionType = BLOCKTYPE[SectionBlockCount];
 	using SectionMetaType = NIBBLETYPE[SectionMetaCount];
+	using NamedIndices = std::array<UInt16, SectionBlockCount>;
 
 private:
 
 	ChunkDataStore<BLOCKTYPE, SectionBlockCount, DefaultValue> m_Blocks;
 	ChunkDataStore<NIBBLETYPE, SectionMetaCount, DefaultMetaValue> m_Metas;
+
+	static constexpr UInt16 MissingNamedState = std::numeric_limits<UInt16>::max();
+
+	struct NamedSection
+	{
+		std::vector<cNamedBlockState> Palette;
+		NamedIndices Indices;
+		size_t Remaining = SectionBlockCount;
+	};
+
+	/** Original states for paletted worlds, allocated only for sections containing named blocks. */
+	std::array<std::unique_ptr<NamedSection>, cChunkDef::NumSections> m_NamedSections;
+
+	void ClearNamedBlock(size_t a_Y, size_t a_Index);
 
 public:
 
@@ -80,11 +96,22 @@ public:
 	BLOCKTYPE GetBlock(Vector3i a_Position) const { return m_Blocks.Get(a_Position); }
 	NIBBLETYPE GetMeta(Vector3i a_Position) const { return m_Metas.Get(a_Position); }
 
-	BlockArray * GetSection(size_t a_Y) const { return m_Blocks.GetSection(a_Y); }
-	MetaArray * GetMetaSection(size_t a_Y) const { return m_Metas.GetSection(a_Y); }
+	const BlockArray * GetSection(size_t a_Y) const { return m_Blocks.GetSection(a_Y); }
+	const MetaArray * GetMetaSection(size_t a_Y) const { return m_Metas.GetSection(a_Y); }
 
-	void SetBlock(Vector3i a_Position, BLOCKTYPE a_Block) { m_Blocks.Set(a_Position, a_Block); }
-	void SetMeta(Vector3i a_Position, NIBBLETYPE a_Meta) { m_Metas.Set(a_Position, a_Meta); }
+	bool HasNamedSection(size_t a_Y) const { return m_NamedSections[a_Y] != nullptr; }
+
+	/** Returns the exact named state, or nullptr when the numeric projection is authoritative. */
+	const cNamedBlockState * GetNamedBlock(Vector3i a_Position) const;
+	const cNamedBlockState * GetNamedBlock(size_t a_Y, size_t a_Index) const;
+
+	/** Attaches a section palette after its numeric projections have been set.
+	All indices are zero-based offsets into a_Palette. */
+	void SetNamedSection(size_t a_Y, std::vector<cNamedBlockState> a_Palette, const NamedIndices & a_Indices);
+
+	/** Changing the numeric block or metadata removes any previously attached named state. */
+	void SetBlock(Vector3i a_Position, BLOCKTYPE a_Block);
+	void SetMeta(Vector3i a_Position, NIBBLETYPE a_Meta);
 
 	void SetAll(const cChunkDef::BlockTypes & a_BlockSource, const cChunkDef::BlockNibbles & a_MetaSource);
 	void SetSection(const SectionType & a_BlockSource, const SectionMetaType & a_MetaSource, size_t a_Y);
@@ -142,7 +169,7 @@ In macro form to work around a Visual Studio 2017 ICE bug. */
 			const auto Metas = BlockData.GetMetaSection(Y); \
 			const auto BlockLights = LightData.GetBlockLightSection(Y); \
 			const auto SkyLights = LightData.GetSkyLightSection(Y); \
-			if ((Blocks != nullptr) || (Metas != nullptr) || (BlockLights != nullptr) || (SkyLights != nullptr)) \
+			if ((Blocks != nullptr) || (Metas != nullptr) || (BlockLights != nullptr) || (SkyLights != nullptr) || BlockData.HasNamedSection(Y)) \
 			{ \
 				Callback \
 			} \

@@ -39,6 +39,7 @@ class cMap;
 class cClientHandle;
 
 struct StatisticsManager;
+struct cNamedBlockState;
 
 typedef std::shared_ptr<cClientHandle> cClientHandlePtr;
 
@@ -153,6 +154,7 @@ public:  // tolua_export
 	void SendBlockAction                (Vector3i a_BlockPos, char a_Byte1, char a_Byte2, BLOCKTYPE a_BlockType);
 	void SendBlockBreakAnim             (UInt32 a_EntityID, Vector3i a_BlockPos, char a_Stage);  // tolua_export
 	void SendBlockChange                (Vector3i a_BlockPos, BLOCKTYPE a_BlockType, NIBBLETYPE a_BlockMeta);  // tolua_export
+	void SendBlockChangeNamed(Vector3i a_BlockPos, BLOCKTYPE a_BlockType, NIBBLETYPE a_BlockMeta, const cNamedBlockState * a_Named);
 	void SendBlockChanges               (int a_ChunkX, int a_ChunkZ, const sSetBlockVector & a_Changes);
 	void SendBossBarAdd                 (UInt32 a_UniqueID, const cCompositeChat & a_Title, float a_FractionFilled, BossBarColor a_Color, BossBarDivisionType a_DivisionType, bool a_DarkenSky, bool a_PlayEndMusic, bool a_CreateFog);  // tolua_export
 	void SendBossBarUpdateFlags         (UInt32 a_UniqueID, bool a_DarkenSky, bool a_PlayEndMusic, bool a_CreateFog);  // tolua_export

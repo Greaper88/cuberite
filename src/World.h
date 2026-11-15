@@ -695,6 +695,12 @@ public:
 
 	/** Returns the data path to the world data */
 	const AString & GetDataPath(void) const { return m_DataPath; }
+	// tolua_end
+
+	/** Directory for Cuberite's maps, scoreboard and statistics serializers. */
+	const AString & GetEngineDataPath() const { return m_EngineDataPath; }
+
+	// tolua_begin
 
 	/** Returns the name of the world.ini file used by this world */
 	const AString & GetIniFileName(void) const {return m_IniFileName; }
@@ -954,6 +960,7 @@ private:
 	AString m_LinkedOverworldName;
 
 	AString m_IniFileName;
+	AString m_EngineDataPath;
 
 	/** Name of the storage schema used to load and save chunks */
 	AString m_StorageSchema;

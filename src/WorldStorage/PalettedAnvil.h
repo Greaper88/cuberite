@@ -1,12 +1,14 @@
 #pragma once
 
 #include "ChunkDef.h"
+#include "NamedBlockState.h"
 
 
 
 
 
 class cFastNBTWriter;
+class ChunkLightData;
 
 
 
@@ -15,11 +17,7 @@ class cFastNBTWriter;
 /** Chunk NBT used by Java releases 1.13 through 1.15.2. */
 namespace PalettedAnvil
 {
-	struct Block
-	{
-		AString Name;
-		AStringMap Properties;
-	};
+	using Block = cNamedBlockState;
 
 	struct Section
 	{
@@ -32,6 +30,16 @@ namespace PalettedAnvil
 
 	/** Writes a terrain section's Palette and BlockStates to an open NBT compound. */
 	void WriteBlocks(cFastNBTWriter & a_Writer, const Section & a_Section);
+
+	/** Encodes newly generated terrain in the requested supported data version. */
+	ContiguousByteBuffer WriteChunk(
+		int a_DataVersion,
+		cChunkCoords a_Coords,
+		const std::map<size_t, Section> & a_Sections,
+		const std::vector<Int32> & a_Biomes,
+		Int64 a_LastUpdate,
+		const ChunkLightData * a_LightData = nullptr
+	);
 
 	/** A chunk read from uncompressed Anvil NBT. Keeps original tags outside the terrain palette. */
 	class Chunk
@@ -51,6 +59,14 @@ namespace PalettedAnvil
 
 		/** Writes the chunk in the same data version, preserving other NBT byte for byte. */
 		ContiguousByteBuffer Encode() const;
+
+		/** Replaces the specified terrain sections and invalidates derived heightmaps.
+		Java 1.13 uses the supplied light arrays, or retains the original light arrays if omitted.
+		Later versions are marked for relighting. Unknown chunk and section tags are retained. */
+		ContiguousByteBuffer Encode(
+			const std::map<size_t, Section> & a_Changes,
+			const ChunkLightData * a_LightData = nullptr
+		) const;
 
 	private:
 		ContiguousByteBuffer m_OriginalNBT;

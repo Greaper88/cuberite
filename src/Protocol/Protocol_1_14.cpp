@@ -8,6 +8,7 @@ Implements the 1.14 protocol classes:
 
 #include "Globals.h"
 #include "Protocol_1_14.h"
+#include "Palettes/NamedBlockPalette.h"
 #include "Packetizer.h"
 #include "JsonUtils.h"
 #include "../Root.h"
@@ -84,11 +85,12 @@ void cProtocol_1_14::SendBlockBreakAnim(UInt32 a_EntityID, Vector3i a_BlockPos, 
 
 
 
-void cProtocol_1_14::SendBlockChange(Vector3i a_BlockPos, BLOCKTYPE a_BlockType, NIBBLETYPE a_BlockMeta)
+void cProtocol_1_14::SendBlockChange(Vector3i a_BlockPos, BLOCKTYPE a_BlockType, NIBBLETYPE a_BlockMeta, const cNamedBlockState * a_Named)
 {
 	cPacketizer Pkt(*this, pktBlockChange);
 	Pkt.WriteXZYPosition64(a_BlockPos);
-	Pkt.WriteVarInt32(GetProtocolBlockType(a_BlockType, a_BlockMeta));
+	const auto Named = (a_Named == nullptr) ? std::nullopt : NamedBlockPalette::ToProtocol(static_cast<UInt32>(GetProtocolVersion()), *a_Named);
+	Pkt.WriteVarInt32(Named.value_or(GetProtocolBlockType(a_BlockType, a_BlockMeta)));
 }
 
 

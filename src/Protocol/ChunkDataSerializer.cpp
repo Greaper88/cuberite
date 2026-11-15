@@ -8,6 +8,7 @@
 #include "../WorldStorage/FastNBT.h"
 
 #include "Palettes/Upgrade.h"
+#include "Palettes/NamedBlockPalette.h"
 #include "Palettes/Palette_1_13.h"
 #include "Palettes/Palette_1_13_1.h"
 #include "Palettes/Palette_1_14.h"
@@ -262,12 +263,12 @@ inline void cChunkDataSerializer::Serialize(const ClientHandles::value_type & a_
 		}
 		case CacheVersion::v393:
 		{
-			Serialize393<&Palette393>(a_ChunkX, a_ChunkZ, a_BlockData, a_LightData, a_BiomeMap);
+			Serialize393<&Palette393, 393>(a_ChunkX, a_ChunkZ, a_BlockData, a_LightData, a_BiomeMap);
 			break;
 		}
 		case CacheVersion::v401:
 		{
-			Serialize393<&Palette401>(a_ChunkX, a_ChunkZ, a_BlockData, a_LightData, a_BiomeMap);
+			Serialize393<&Palette401, 401>(a_ChunkX, a_ChunkZ, a_BlockData, a_LightData, a_BiomeMap);
 			break;
 		}
 		case CacheVersion::v477:
@@ -508,7 +509,7 @@ inline void cChunkDataSerializer::Serialize110(const int a_ChunkX, const int a_C
 
 
 
-template <auto Palette>
+template <auto Palette, UInt32 Protocol>
 inline void cChunkDataSerializer::Serialize393(const int a_ChunkX, const int a_ChunkZ, const ChunkBlockData & a_BlockData, const ChunkLightData & a_LightData, const unsigned char * a_BiomeMap)
 {
 	// This function returns the fully compressed packet (including packet size), not the raw packet!
@@ -553,7 +554,7 @@ inline void cChunkDataSerializer::Serialize393(const int a_ChunkX, const int a_C
 	{
 		m_Packet.WriteBEUInt8(BitsPerEntry);
 		m_Packet.WriteVarInt32(static_cast<UInt32>(ChunkSectionDataArraySize));
-		WriteBlockSectionSeamless<Palette>(Blocks, Metas, BitsPerEntry);
+		(WriteBlockSectionSeamless<Palette, Protocol>(Blocks, Metas, BitsPerEntry, &a_BlockData, Y));
 		WriteLightSectionGrouped(BlockLights, SkyLights);
 	});
 
@@ -619,7 +620,7 @@ inline void cChunkDataSerializer::Serialize477(const int a_ChunkX, const int a_C
 		m_Packet.WriteBEInt16(ChunkBlockData::SectionBlockCount);  // a temp fix to make sure sections don't disappear
 		m_Packet.WriteBEUInt8(BitsPerEntry);
 		m_Packet.WriteVarInt32(static_cast<UInt32>(ChunkSectionDataArraySize));
-		WriteBlockSectionSeamless<&Palette477>(Blocks, Metas, BitsPerEntry);
+		(WriteBlockSectionSeamless<&Palette477, 477>(Blocks, Metas, BitsPerEntry, &a_BlockData, Y));
 	});
 
 	// Write the biome data
@@ -673,7 +674,7 @@ void cChunkDataSerializer::Serialize578(int a_ChunkX, int a_ChunkZ, const ChunkB
 		m_Packet.WriteBEUInt16(static_cast<UInt16>(Count));
 		m_Packet.WriteBEUInt8(BitsPerEntry);
 		m_Packet.WriteVarInt32(SectionLongCount);
-		WriteBlockSectionSeamless<&Palette578>(Blocks, Metas, BitsPerEntry);
+		(WriteBlockSectionSeamless<&Palette578, 578>(Blocks, Metas, BitsPerEntry, &a_BlockData, Y));
 	});
 	m_Packet.WriteVarInt32(0);  // Block entities are sent separately by the chunk sender.
 }
@@ -733,8 +734,14 @@ void cChunkDataSerializer::Serialize578Light(int a_ChunkX, int a_ChunkZ, const C
 
 
 
-template <auto Palette>
-inline void cChunkDataSerializer::WriteBlockSectionSeamless(const ChunkBlockData::BlockArray * a_Blocks, const ChunkBlockData::MetaArray * a_Metas, const UInt8 a_BitsPerEntry)
+template <auto Palette, UInt32 Protocol>
+inline void cChunkDataSerializer::WriteBlockSectionSeamless(
+	const ChunkBlockData::BlockArray * a_Blocks,
+	const ChunkBlockData::MetaArray * a_Metas,
+	UInt8 a_BitsPerEntry,
+	const ChunkBlockData * a_ChunkData,
+	size_t a_SectionY
+)
 {
 	// https://wiki.vg/Chunk_Format#Data_structure
 
@@ -746,12 +753,29 @@ inline void cChunkDataSerializer::WriteBlockSectionSeamless(const ChunkBlockData
 
 	const bool BlocksExist = a_Blocks != nullptr;
 	const bool MetasExist = a_Metas != nullptr;
+	std::unordered_map<const cNamedBlockState *, std::optional<UInt32>> NamedIDs;
+	const bool SectionHasNames = (Protocol != 0) && a_ChunkData->HasNamedSection(a_SectionY);
 
 	for (size_t Index = 0; Index != ChunkBlockData::SectionBlockCount; Index++)
 	{
 		const BLOCKTYPE BlockType = BlocksExist ? (*a_Blocks)[Index] : 0;
 		const NIBBLETYPE BlockMeta = MetasExist ? cChunkDef::ExpandNibble(a_Metas->data(), Index) : 0;
-		const auto Value = Palette(BlockType, BlockMeta);
+		UInt32 Value = Palette(BlockType, BlockMeta);
+		if (SectionHasNames)
+		{
+			if (const auto * Named = a_ChunkData->GetNamedBlock(a_SectionY, Index); Named != nullptr)
+			{
+				const auto [Entry, Inserted] = NamedIDs.try_emplace(Named);
+				if (Inserted)
+				{
+					Entry->second = NamedBlockPalette::ToProtocol(Protocol, *Named);
+				}
+				if (Entry->second.has_value())
+				{
+					Value = *Entry->second;
+				}
+			}
+		}
 
 		// Write as much as possible of Value, starting from BitIndex, into Buffer:
 		Buffer |= static_cast<UInt64>(Value) << BitIndex;

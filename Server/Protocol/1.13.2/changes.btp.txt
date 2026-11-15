@@ -1,0 +1,28 @@
+BlockTypePalette
+FileVersion	1
+CommonPrefix	minecraft:
+
+1126	tnt	unstable	true
+1127	tnt	unstable	false
+8460	dead_tube_coral	waterlogged	true
+8461	dead_tube_coral	waterlogged	false
+8462	dead_brain_coral	waterlogged	true
+8463	dead_brain_coral	waterlogged	false
+8464	dead_bubble_coral	waterlogged	true
+8465	dead_bubble_coral	waterlogged	false
+8466	dead_fire_coral	waterlogged	true
+8467	dead_fire_coral	waterlogged	false
+8468	dead_horn_coral	waterlogged	true
+8469	dead_horn_coral	waterlogged	false
+8470	tube_coral	waterlogged	true
+8471	tube_coral	waterlogged	false
+8472	brain_coral	waterlogged	true
+8473	brain_coral	waterlogged	false
+8474	bubble_coral	waterlogged	true
+8475	bubble_coral	waterlogged	false
+8476	fire_coral	waterlogged	true
+8477	fire_coral	waterlogged	false
+8478	horn_coral	waterlogged	true
+8479	horn_coral	waterlogged	false
+8589	conduit	waterlogged	true
+8590	conduit	waterlogged	false

@@ -6,6 +6,7 @@
 #include "Globals.h"
 #include "WorldStorage.h"
 #include "WSSAnvil.h"
+#include "WSSPalettedAnvil.h"
 #include "../World.h"
 
 
@@ -33,7 +34,7 @@ cWorldStorage::~cWorldStorage() = default;
 
 void cWorldStorage::Initialize(
 	cWorld & a_World,
-	eWorldStorageFormat a_Format,
+	const cWorldStorageFormat & a_Format,
 	const AString & a_StorageSchemaName,
 	int a_StorageCompressionFactor
 )
@@ -45,11 +46,16 @@ void cWorldStorage::Initialize(
 		LOGWARNING("Unknown storage schema '%s' for world '%s'. Using the detected format.", a_StorageSchemaName, a_World.GetName());
 	}
 
-	switch (a_Format)
+	switch (a_Format.Format)
 	{
 		case eWorldStorageFormat::LegacyAnvil:
 		{
-			m_Schema = std::make_unique<cWSSAnvil>(&a_World, a_StorageCompressionFactor);
+			m_Schema = std::make_unique<cWSSAnvil>(&a_World, a_StorageCompressionFactor, a_Format);
+			break;
+		}
+		case eWorldStorageFormat::PalettedAnvil:
+		{
+			m_Schema = std::make_unique<cWSSPalettedAnvil>(&a_World, a_StorageCompressionFactor, a_Format);
 			break;
 		}
 	}

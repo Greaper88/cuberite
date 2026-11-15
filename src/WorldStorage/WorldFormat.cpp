@@ -1,6 +1,7 @@
 #include "Globals.h"
 #include "WorldFormat.h"
 #include "FastNBT.h"
+#include "ChunkDef.h"
 #include "PalettedAnvil.h"
 #include "OSSupport/File.h"
 #include "OSSupport/GZipFile.h"
@@ -11,7 +12,6 @@
 
 namespace
 {
-	constexpr auto CurrentWorldFormat = eWorldStorageFormat::LegacyAnvil;
 	constexpr int AnvilSaveVersion = 19133;
 	constexpr int McRegionSaveVersion = 19132;
 
@@ -35,13 +35,24 @@ namespace
 		}
 		return false;
 	}
+
+	AString FindLevelMetadata(const AString & a_Path)
+	{
+		auto LevelDat = a_Path + cFile::PathSeparator() + "level.dat";
+		if (cFile::Exists(LevelDat))
+		{
+			return LevelDat;
+		}
+		LevelDat += "_old";
+		return cFile::Exists(LevelDat) ? LevelDat : AString{};
+	}
 }
 
 
 
 
 
-eWorldStorageFormat SelectWorldStorageFormat(const AString & a_WorldPath)
+cWorldStorageFormat SelectWorldStorageFormat(const AString & a_WorldPath)
 {
 	const auto Base = a_WorldPath + cFile::PathSeparator();
 	if (cFile::Exists(Base + "db" + cFile::PathSeparator() + "CURRENT"))
@@ -53,18 +64,28 @@ eWorldStorageFormat SelectWorldStorageFormat(const AString & a_WorldPath)
 		RejectFormat(a_WorldPath, "Java McRegion worlds are unsupported");
 	}
 
-	auto MetadataPath = Base + "level.dat";
-	if (!cFile::Exists(MetadataPath))
+	auto MetadataPath = FindLevelMetadata(a_WorldPath);
+	if (MetadataPath.empty())
 	{
-		MetadataPath = Base + "level.dat_old";
-		if (!cFile::Exists(MetadataPath))
+		// Vanilla stores the Nether and End alongside the overworld's region directory.
+		const auto End = a_WorldPath.find_last_not_of("/\\");
+		const auto Separator = a_WorldPath.find_last_of("/\\", End);
+		if ((End != AString::npos) && (Separator != AString::npos))
 		{
-			// Cuberite worlds can also contain just region files, without a level.dat.
-			return HasRegionFiles(Base + "region", ".mca") ? eWorldStorageFormat::LegacyAnvil : CurrentWorldFormat;
+			const auto Directory = a_WorldPath.substr(Separator + 1, End - Separator);
+			if ((Directory == "DIM-1") || (Directory == "DIM1"))
+			{
+				MetadataPath = FindLevelMetadata(a_WorldPath.substr(0, Separator));
+			}
 		}
 	}
+	if (MetadataPath.empty())
+	{
+		// New worlds and markerless legacy regions use the complete legacy Java schema.
+		return {eWorldStorageFormat::LegacyAnvil, 0, false, {}, {}};
+	}
 
-	int DataVersion = 0;
+	cWorldStorageFormat Format{eWorldStorageFormat::LegacyAnvil, 0, true, {}, {}};
 	int SaveVersion = AnvilSaveVersion;
 	try
 	{
@@ -83,7 +104,28 @@ eWorldStorageFormat SelectWorldStorageFormat(const AString & a_WorldPath)
 			{
 				throw std::runtime_error("invalid DataVersion tag");
 			}
-			DataVersion = Nbt.GetInt(DataVersionTag);
+			Format.DataVersion = Nbt.GetInt(DataVersionTag);
+		}
+
+		const auto SpawnX = Nbt.FindChildByName(Data, "SpawnX");
+		const auto SpawnY = Nbt.FindChildByName(Data, "SpawnY");
+		const auto SpawnZ = Nbt.FindChildByName(Data, "SpawnZ");
+		if (
+			(SpawnX >= 0) && (Nbt.GetType(SpawnX) == TAG_Int) &&
+			(SpawnY >= 0) && (Nbt.GetType(SpawnY) == TAG_Int) &&
+			(SpawnZ >= 0) && (Nbt.GetType(SpawnZ) == TAG_Int)
+		)
+		{
+			const auto Y = Nbt.GetInt(SpawnY);
+			if ((Y >= 0) && (Y < cChunkDef::Height))
+			{
+				Format.Spawn = Vector3i(Nbt.GetInt(SpawnX), Y, Nbt.GetInt(SpawnZ));
+			}
+		}
+		const auto Seed = Nbt.FindChildByName(Data, "RandomSeed");
+		if ((Seed >= 0) && (Nbt.GetType(Seed) == TAG_Long))
+		{
+			Format.Seed = Nbt.GetLong(Seed);
 		}
 
 		const int SaveVersionTag = Nbt.FindChildByName(Data, "version");
@@ -101,14 +143,6 @@ eWorldStorageFormat SelectWorldStorageFormat(const AString & a_WorldPath)
 		RejectFormat(a_WorldPath, fmt::format(FMT_STRING("cannot identify the format in {} ({})"), MetadataPath, Error.what()));
 	}
 
-	if (PalettedAnvil::BiomeCount(DataVersion) != 0)
-	{
-		RejectFormat(a_WorldPath, fmt::format(FMT_STRING("Java DataVersion {} requires paletted block states in the live world engine"), DataVersion));
-	}
-	if (DataVersion > LegacyAnvilMaxDataVersion)
-	{
-		RejectFormat(a_WorldPath, fmt::format(FMT_STRING("Java world DataVersion {} is unsupported"), DataVersion));
-	}
 	if (SaveVersion == McRegionSaveVersion)
 	{
 		RejectFormat(a_WorldPath, "Java McRegion worlds are unsupported");
@@ -117,5 +151,13 @@ eWorldStorageFormat SelectWorldStorageFormat(const AString & a_WorldPath)
 	{
 		RejectFormat(a_WorldPath, fmt::format(FMT_STRING("Java world save version {} is unsupported"), SaveVersion));
 	}
-	return eWorldStorageFormat::LegacyAnvil;
+	if (PalettedAnvil::BiomeCount(Format.DataVersion) != 0)
+	{
+		Format.Format = eWorldStorageFormat::PalettedAnvil;
+	}
+	else if (Format.DataVersion > LegacyAnvilMaxDataVersion)
+	{
+		RejectFormat(a_WorldPath, fmt::format(FMT_STRING("Java world DataVersion {} is unsupported"), Format.DataVersion));
+	}
+	return Format;
 }

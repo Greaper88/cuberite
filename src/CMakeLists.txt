@@ -127,6 +127,7 @@ target_sources(
 	MobProximityCounter.h
 	MobSpawner.h
 	MonsterConfig.h
+	NamedBlockState.h
 	NetherPortalScanner.h
 	OpaqueWorld.h
 	OverridesSettingsRepository.h

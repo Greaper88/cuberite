@@ -30,7 +30,7 @@ class cWSSAnvil:
 
 public:
 
-	cWSSAnvil(cWorld * a_World, int a_CompressionFactor);
+	cWSSAnvil(cWorld * a_World, int a_CompressionFactor, const cWorldStorageFormat & a_Format);
 	virtual ~cWSSAnvil() override;
 
 protected:
@@ -110,10 +110,13 @@ protected:
 	bool SetChunkData(const cChunkCoords & a_Chunk, ContiguousByteBufferView a_Data);
 
 	/** Loads the chunk from the data (no locking needed) */
-	bool LoadChunkFromData(const cChunkCoords & a_Chunk, ContiguousByteBufferView a_Data);
+	virtual bool LoadChunkFromData(const cChunkCoords & a_Chunk, ContiguousByteBufferView a_Data);
 
-	/** Saves the chunk into datastream (no locking needed) */
-	Compression::Result SaveChunkToData(const cChunkCoords & a_Chunk);
+	/** Serializes the chunk, or returns no data when its stored record is already current. */
+	virtual std::optional<Compression::Result> SaveChunkToData(const cChunkCoords & a_Chunk);
+
+	/** Serializes a legacy chunk, retaining its data version when one was supplied. */
+	Compression::Result SaveLegacyChunkToData(const cChunkCoords & a_Chunk, int a_DataVersion);
 
 	/** Loads the chunk from NBT data (no locking needed).
 	a_RawChunkData is the raw (compressed) chunk data, used for offloading when chunk loading fails. */

@@ -80,13 +80,13 @@ Since only the header is actually in the memory, this number can be high, but st
 ////////////////////////////////////////////////////////////////////////////////
 // cWSSAnvil:
 
-cWSSAnvil::cWSSAnvil(cWorld * a_World, int a_CompressionFactor):
+cWSSAnvil::cWSSAnvil(cWorld * a_World, int a_CompressionFactor, const cWorldStorageFormat & a_Format):
 	Super(a_World),
 	m_Compressor(a_CompressionFactor)
 {
 	// Create a level.dat file for mapping tools, if it doesn't already exist:
 	auto fnam = fmt::format(FMT_STRING("{}{}level.dat"), a_World->GetDataPath(), cFile::PathSeparator());
-	if (!cFile::Exists(fnam) && !cFile::Exists(fnam + "_old"))
+	if (!a_Format.HasLevelMetadata)
 	{
 		cFastNBTWriter Writer;
 		Writer.BeginCompound("Data");
@@ -155,7 +155,8 @@ bool cWSSAnvil::SaveChunk(const cChunkCoords & a_Chunk)
 
 	try
 	{
-		if (!SetChunkData(a_Chunk, SaveChunkToData(a_Chunk).GetView()))
+		const auto Data = SaveChunkToData(a_Chunk);
+		if (Data.has_value() && !SetChunkData(a_Chunk, Data->GetView()))
 		{
 			LOGWARNING("Cannot store chunk [%d, %d] data", a_Chunk.m_ChunkX, a_Chunk.m_ChunkZ);
 			return false;
@@ -350,9 +351,22 @@ bool cWSSAnvil::LoadChunkFromData(const cChunkCoords & a_Chunk, const Contiguous
 
 
 
-Compression::Result cWSSAnvil::SaveChunkToData(const cChunkCoords & a_Chunk)
+std::optional<Compression::Result> cWSSAnvil::SaveChunkToData(const cChunkCoords & a_Chunk)
+{
+	return SaveLegacyChunkToData(a_Chunk, 0);
+}
+
+
+
+
+
+Compression::Result cWSSAnvil::SaveLegacyChunkToData(const cChunkCoords & a_Chunk, int a_DataVersion)
 {
 	cFastNBTWriter Writer;
+	if (a_DataVersion > 0)
+	{
+		Writer.AddInt("DataVersion", a_DataVersion);
+	}
 	NBTChunkSerializer::Serialize(*m_World, a_Chunk, Writer);
 	Writer.Finish();
 
