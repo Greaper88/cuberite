@@ -218,6 +218,7 @@ cWorld::cWorld(
 {
 	LOGD("cWorld::cWorld(\"%s\")", a_WorldName);
 
+	const auto StorageFormat = SelectWorldStorageFormat(m_DataPath);
 	cFile::CreateFolderRecursive(m_DataPath);
 
 	m_ChunkMap.TrackInDeadlockDetect(a_DeadlockDetect, m_WorldName);
@@ -424,7 +425,7 @@ cWorld::cWorld(
 	m_SimulatorManager->RegisterSimulator(m_SandSimulator.get(), 1);
 	m_SimulatorManager->RegisterSimulator(m_FireSimulator.get(), 1);
 
-	m_Storage.Initialize(*this, m_StorageSchema, m_StorageCompressionFactor);
+	m_Storage.Initialize(*this, StorageFormat, m_StorageSchema, m_StorageCompressionFactor);
 	m_Generator.Initialize(m_GeneratorCallbacks, m_GeneratorCallbacks, IniFile);
 
 	m_MapManager.LoadMapData();

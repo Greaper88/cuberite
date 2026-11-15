@@ -63,6 +63,7 @@ bool cFile::Open(const AString & iFileName, eMode iMode)
 	{
 		case fmRead:      Mode = "rb";  break;
 		case fmWrite:     Mode = "wb";  break;
+		case fmReadWriteExisting:
 		case fmReadWrite: Mode = "rb+"; break;
 		case fmAppend:    Mode = "a+";  break;
 	}

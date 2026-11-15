@@ -86,7 +86,7 @@ cWSSAnvil::cWSSAnvil(cWorld * a_World, int a_CompressionFactor):
 {
 	// Create a level.dat file for mapping tools, if it doesn't already exist:
 	auto fnam = fmt::format(FMT_STRING("{}{}level.dat"), a_World->GetDataPath(), cFile::PathSeparator());
-	if (!cFile::Exists(fnam))
+	if (!cFile::Exists(fnam) && !cFile::Exists(fnam + "_old"))
 	{
 		cFastNBTWriter Writer;
 		Writer.BeginCompound("Data");
@@ -148,6 +148,11 @@ bool cWSSAnvil::LoadChunk(const cChunkCoords & a_Chunk)
 
 bool cWSSAnvil::SaveChunk(const cChunkCoords & a_Chunk)
 {
+	if (m_ProtectedChunks.find(a_Chunk) != m_ProtectedChunks.end())
+	{
+		return false;
+	}
+
 	try
 	{
 		if (!SetChunkData(a_Chunk, SaveChunkToData(a_Chunk).GetView()))
@@ -172,6 +177,11 @@ bool cWSSAnvil::SaveChunk(const cChunkCoords & a_Chunk)
 
 void cWSSAnvil::ChunkLoadFailed(const cChunkCoords a_ChunkCoords, const AString & a_Reason, const ContiguousByteBufferView a_ChunkDataToSave)
 {
+	if (!m_ProtectedChunks.insert(a_ChunkCoords).second)
+	{
+		return;
+	}
+
 	// Construct the filename for offloading:
 	auto OffloadFileName = fmt::format(FMT_STRING("{0}{1}region{1}badchunks"), m_World->GetDataPath(), cFile::PathSeparator());
 	cFile::CreateFolder(OffloadFileName);
@@ -192,7 +202,7 @@ void cWSSAnvil::ChunkLoadFailed(const cChunkCoords a_ChunkCoords, const AString 
 	const int RegionX = FAST_FLOOR_DIV(a_ChunkCoords.m_ChunkX, 32);
 	const int RegionZ = FAST_FLOOR_DIV(a_ChunkCoords.m_ChunkZ, 32);
 	auto Info = fmt::format(
-		FMT_STRING("Loading chunk {} for world {} from file r.{}.{}.mca failed: {} Offloading old chunk data to file {} and regenerating chunk."),
+		FMT_STRING("Loading chunk {} for world {} from file r.{}.{}.mca failed: {} The on-disk chunk is protected from saves. Backing up the raw data to {}."),
 		a_ChunkCoords, m_World->GetName(), RegionX, RegionZ, a_Reason, OffloadFileName
 	);
 	LOGWARNING("%s", Info);
@@ -201,7 +211,7 @@ void cWSSAnvil::ChunkLoadFailed(const cChunkCoords a_ChunkCoords, const AString 
 	cFile f;
 	if (!f.Open(OffloadFileName, cFile::fmWrite))
 	{
-		LOGWARNING("Cannot open file %s for writing! Old chunk data is lost.", OffloadFileName);
+		LOGWARNING("Cannot open file %s for writing the extra backup.", OffloadFileName);
 		return;
 	}
 	f.Write(a_ChunkDataToSave.data(), a_ChunkDataToSave.size());
@@ -315,7 +325,18 @@ bool cWSSAnvil::LoadChunkFromData(const cChunkCoords & a_Chunk, const Contiguous
 			throw std::runtime_error(fmt::format("NBT parsing failed. {} at position {}.", NBT.GetErrorCode().message(), NBT.GetErrorPos()));
 		}
 
-		// Load the data from NBT:
+		const int Version = NBT.FindChildByName(0, "DataVersion");
+		if (Version >= 0)
+		{
+			if (NBT.GetType(Version) != TAG_Int)
+			{
+				throw std::runtime_error("Invalid chunk DataVersion tag");
+			}
+			if (NBT.GetInt(Version) > LegacyAnvilMaxDataVersion)
+			{
+				throw std::runtime_error(fmt::format(FMT_STRING("Unsupported chunk DataVersion {}"), NBT.GetInt(Version)));
+			}
+		}
 		return LoadChunkFromNBT(a_Chunk, NBT, a_Data);
 	}
 	catch (const std::exception & Oops)
@@ -381,6 +402,20 @@ bool cWSSAnvil::LoadChunkFromNBT(const cChunkCoords & a_Chunk, const cParsedNBT 
 		{
 			ChunkLoadFailed(a_Chunk, "NBT tag exceeds chunk bounds: Y", a_RawChunkData);
 			return false;
+		}
+
+		const int Add = a_NBT.FindChildByName(Child, "Add");
+		if (Add >= 0)
+		{
+			const auto HighIDs = GetSectionData(a_NBT, Child, "Add", ChunkBlockData::SectionMetaCount);
+			if (
+				(HighIDs == nullptr) ||
+				std::any_of(HighIDs, HighIDs + ChunkBlockData::SectionMetaCount, [](std::byte a_Value) { return a_Value != std::byte{}; })
+			)
+			{
+				ChunkLoadFailed(a_Chunk, "Extended block IDs are unsupported", a_RawChunkData);
+				return false;
+			}
 		}
 
 		const auto
@@ -3889,59 +3924,46 @@ cWSSAnvil::cMCAFile::cMCAFile(cWSSAnvil & a_ParentSchema, const AString & a_File
 
 bool cWSSAnvil::cMCAFile::OpenFile(bool a_IsForReading)
 {
-	bool writeOutNeeded = false;
-
 	if (m_File.IsOpen())
 	{
-		// Already open
 		return true;
 	}
 
-	if (a_IsForReading)
+	if (cFile::Exists(m_FileName))
 	{
-		if (!cFile::Exists(m_FileName))
+		if (!m_File.Open(m_FileName, cFile::fmReadWriteExisting))
 		{
-			// We want to read and the file doesn't exist. Fail.
+			LOGWARNING("Cannot open MCA file \"%s\": existing chunks will be preserved.", m_FileName.c_str());
 			return false;
 		}
-	}
 
-	if (!m_File.Open(m_FileName, cFile::fmReadWrite))
-	{
-		// The file failed to open
-		return false;
-	}
-
-	// Load the header:
-	if (m_File.Read(m_Header, sizeof(m_Header)) != sizeof(m_Header))
-	{
-		// Cannot read the header - perhaps the file has just been created?
-		// Try writing a nullptr header for chunk offsets:
-		memset(m_Header, 0, sizeof(m_Header));
-		writeOutNeeded = true;
-	}
-
-	// Load the TimeStamps:
-	if (m_File.Read(m_TimeStamps, sizeof(m_TimeStamps)) != sizeof(m_TimeStamps))
-	{
-		// Cannot read the time stamps - perhaps the file has just been created?
-		// Try writing a nullptr header for timestamps:
-		memset(m_TimeStamps, 0, sizeof(m_TimeStamps));
-		writeOutNeeded = true;
-	}
-
-	if (writeOutNeeded)
-	{
-		m_File.Seek(0);
 		if (
-			(m_File.Write(m_Header, sizeof(m_Header)) != sizeof(m_Header)) ||           // Write chunk offsets
-			(m_File.Write(m_TimeStamps, sizeof(m_TimeStamps)) != sizeof(m_TimeStamps))  // Write chunk timestamps
+			(m_File.Read(m_Header, sizeof(m_Header)) != sizeof(m_Header)) ||
+			(m_File.Read(m_TimeStamps, sizeof(m_TimeStamps)) != sizeof(m_TimeStamps))
 		)
 		{
-			LOGWARNING("Cannot process MCA header in file \"%s\", chunks in that file will be lost", m_FileName.c_str());
+			LOGWARNING("Cannot read MCA header in \"%s\": existing data will be preserved.", m_FileName.c_str());
 			m_File.Close();
 			return false;
 		}
+		return true;
+	}
+
+	if (a_IsForReading || !m_File.Open(m_FileName, cFile::fmReadWrite))
+	{
+		return false;
+	}
+
+	memset(m_Header, 0, sizeof(m_Header));
+	memset(m_TimeStamps, 0, sizeof(m_TimeStamps));
+	if (
+		(m_File.Write(m_Header, sizeof(m_Header)) != sizeof(m_Header)) ||
+		(m_File.Write(m_TimeStamps, sizeof(m_TimeStamps)) != sizeof(m_TimeStamps))
+	)
+	{
+		LOGWARNING("Cannot initialize MCA header in \"%s\".", m_FileName.c_str());
+		m_File.Close();
+		return false;
 	}
 	return true;
 }
@@ -3969,12 +3991,21 @@ bool cWSSAnvil::cMCAFile::GetChunkData(const cChunkCoords & a_Chunk, ContiguousB
 	}
 	unsigned ChunkLocation = ntohl(m_Header[LocalX + 32 * LocalZ]);
 	unsigned ChunkOffset = ChunkLocation >> 8;
-	if (ChunkOffset < 2)
+	if (ChunkLocation == 0)
 	{
 		return false;
 	}
 
-	m_File.Seek(static_cast<int>(ChunkOffset * 4096));
+	const unsigned SectorCount = ChunkLocation & 0xff;
+	if (
+		(ChunkOffset < 2) || (SectorCount == 0) ||
+		(ChunkOffset > std::numeric_limits<int>::max() / 4096) ||
+		(m_File.Seek(static_cast<int>(ChunkOffset * 4096)) < 0)
+	)
+	{
+		m_ParentSchema.ChunkLoadFailed(a_Chunk, "Invalid chunk location", {});
+		return false;
+	}
 
 	UInt32 ChunkSize = 0;
 	if (m_File.Read(&ChunkSize, 4) != 4)
@@ -3983,10 +4014,9 @@ bool cWSSAnvil::cMCAFile::GetChunkData(const cChunkCoords & a_Chunk, ContiguousB
 		return false;
 	}
 	ChunkSize = ntohl(ChunkSize);
-	if (ChunkSize < 1)
+	if ((ChunkSize < 1) || (ChunkSize > SectorCount * 4096 - sizeof(ChunkSize)))
 	{
-		// Chunk size too small
-		m_ParentSchema.ChunkLoadFailed(a_Chunk, "Chunk size too small", {});
+		m_ParentSchema.ChunkLoadFailed(a_Chunk, "Chunk size exceeds its record bounds", {});
 		return false;
 	}
 
@@ -4051,11 +4081,27 @@ bool cWSSAnvil::cMCAFile::SetChunkData(const cChunkCoords & a_Chunk, const Conti
 		LocalZ = 32 + LocalZ;
 	}
 
-	unsigned ChunkSector = FindFreeLocation(LocalX, LocalZ, a_Data.size());
+	const auto SectorCount = (a_Data.size() + MCA_CHUNK_HEADER_LENGTH + 4095) / 4096;
+	if (SectorCount > 255)
+	{
+		LOGWARNING("Cannot save chunk [%d, %d], the data is too large (%u KiB, maximum is 1020 KiB). Remove some entities and retry.",
+			a_Chunk.m_ChunkX, a_Chunk.m_ChunkZ, static_cast<unsigned>(SectorCount * 4)
+		);
+		return false;
+	}
+
+	const unsigned ChunkSector = FindFreeLocation(LocalX, LocalZ, a_Data.size());
+	if (
+		(ChunkSector < 2) || (ChunkSector > std::numeric_limits<int>::max() / 4096) ||
+		(m_File.Seek(static_cast<int>(ChunkSector * 4096)) < 0)
+	)
+	{
+		LOGWARNING("Cannot save chunk [%d, %d], invalid write location in file \"%s\".", a_Chunk.m_ChunkX, a_Chunk.m_ChunkZ, GetFileName());
+		return false;
+	}
 
 	// Store the chunk data:
-	m_File.Seek(static_cast<int>(ChunkSector * 4096));
-	UInt32 ChunkSize = htonl(static_cast<UInt32>(a_Data.size() + 1));
+	const UInt32 ChunkSize = htonl(static_cast<UInt32>(a_Data.size() + 1));
 	if (m_File.Write(&ChunkSize, 4) != 4)
 	{
 		LOGWARNING("Cannot save chunk [%d, %d], writing(1) data to file \"%s\" failed", a_Chunk.m_ChunkX, a_Chunk.m_ChunkZ, GetFileName().c_str());
@@ -4082,17 +4128,7 @@ bool cWSSAnvil::cMCAFile::SetChunkData(const cChunkCoords & a_Chunk, const Conti
 	}
 
 	// Store the header:
-	ChunkSize = (static_cast<UInt32>(a_Data.size()) + MCA_CHUNK_HEADER_LENGTH + 4095) / 4096;  // Round data size up to nearest 4KB sector, make it a sector number
-	if (ChunkSize > 255)
-	{
-		LOGWARNING("Cannot save chunk [%d, %d], the data is too large (%u KiB, maximum is 1024 KiB). Remove some entities and retry.",
-			a_Chunk.m_ChunkX, a_Chunk.m_ChunkZ, static_cast<unsigned>(ChunkSize * 4)
-		);
-		return false;
-	}
-
-	// Store the header info in the table
-	m_Header[LocalX + 32 * LocalZ] = htonl(static_cast<UInt32>((ChunkSector << 8) | ChunkSize));
+	m_Header[LocalX + 32 * LocalZ] = htonl(static_cast<UInt32>((ChunkSector << 8) | SectorCount));
 
 	// Set the modification time
 	m_TimeStamps[LocalX + 32 * LocalZ] =  htonl(static_cast<UInt32>(time(nullptr)));

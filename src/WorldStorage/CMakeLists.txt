@@ -11,6 +11,7 @@ target_sources(
 	ScoreboardSerializer.cpp
 	StatisticsSerializer.cpp
 	WSSAnvil.cpp
+	WorldFormat.cpp
 	WorldStorage.cpp
 
 	EnchantmentSerializer.h
@@ -23,5 +24,6 @@ target_sources(
 	ScoreboardSerializer.h
 	StatisticsSerializer.h
 	WSSAnvil.h
+	WorldFormat.h
 	WorldStorage.h
 )

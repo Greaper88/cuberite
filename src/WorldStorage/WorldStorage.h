@@ -2,9 +2,8 @@
 // WorldStorage.h
 
 // Interfaces to the cWorldStorage class representing the chunk loading / saving thread
-// This class decides which storage schema to use for saving; it queries all available schemas for loading
+// Selects a single storage schema to read and write the world's on-disk format
 // Also declares the base class for all storage schemas, cWSSchema
-// Helper serialization class cJsonChunkSerializer is declared as well
 
 
 
@@ -15,6 +14,7 @@
 #include "../OSSupport/IsThread.h"
 #include "../OSSupport/Queue.h"
 #include "ChunkDef.h"
+#include "WorldFormat.h"
 
 
 
@@ -35,14 +35,11 @@ public:
 
 	virtual bool LoadChunk(const cChunkCoords & a_Chunk) = 0;
 	virtual bool SaveChunk(const cChunkCoords & a_Chunk) = 0;
-	virtual const AString GetName(void) const = 0;
 
 protected:
 
 	cWorld * m_World;
 } ;
-
-typedef std::list<cWSSchema *> cWSSchemaList;
 
 
 
@@ -65,8 +62,8 @@ public:
 	/** Queues a chunk to be saved, asynchronously. */
 	void QueueSaveChunk(int a_ChunkX, int a_ChunkZ);
 
-	/** Initializes the storage schemas, ready to be started. */
-	void Initialize(cWorld & a_World, const AString & a_StorageSchemaName, int a_StorageCompressionFactor);
+	/** Initializes the selected storage schema, ready to be started. */
+	void Initialize(cWorld & a_World, eWorldStorageFormat a_Format, const AString & a_StorageSchemaName, int a_StorageCompressionFactor);
 	void Stop(void);  // Hide the cIsThread's Stop() method, we need to signal the event
 	void WaitForFinish(void);
 	void WaitForLoadQueueEmpty(void);
@@ -78,16 +75,13 @@ public:
 protected:
 
 	cWorld * m_World;
-	AString  m_StorageSchemaName;
+	bool m_DiscardSaves = false;
 
 	cQueue<cChunkCoords> m_LoadQueue;
 	cQueue<cChunkCoords> m_SaveQueue;
 
-	/** All the storage schemas (all used for loading) */
-	cWSSchemaList m_Schemas;
-
-	/** The one storage schema used for saving */
-	cWSSchema * m_SaveSchema;
+	/** The schema chosen for this world, used for both loading and saving. */
+	std::unique_ptr<cWSSchema> m_Schema;
 
 	/** Set when there's any addition to the queues */
 	cEvent m_Event;
@@ -95,8 +89,6 @@ protected:
 
 	/** Loads the chunk specified; returns true on success, false on failure */
 	bool LoadChunk(int a_ChunkX, int a_ChunkZ);
-
-	void InitSchemas(int a_StorageCompressionFactor);
 
 	virtual void Execute(void) override;
 

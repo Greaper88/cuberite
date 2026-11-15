@@ -54,7 +54,8 @@ public:
 		fmRead,       // Read-only. If the file doesn't exist, object will not be valid
 		fmWrite,      // Write-only. If the file already exists, it will be overwritten
 		fmReadWrite,  // Read / write. If the file already exists, it will be left intact; writing will overwrite the data from the beginning
-		fmAppend      // Write-only. If the file already exists cursor will be moved to the end of the file
+		fmAppend,     // Write-only. If the file already exists cursor will be moved to the end of the file
+		fmReadWriteExisting,  // Read / write an existing file without creating or truncating it
 	} ;
 
 	/** Simple constructor - creates an unopened file object, use Open() to open / create a real file */

@@ -91,6 +91,9 @@ protected:
 	Protected against multithreaded access by m_CS. */
 	std::list<std::shared_ptr<cMCAFile>> m_Files;
 
+	/** On-disk chunks whose existing records must be preserved. Accessed by the storage thread. */
+	std::set<cChunkCoords> m_ProtectedChunks;
+
 	Compression::Extractor m_Extractor;
 	Compression::Compressor m_Compressor;
 
@@ -299,5 +302,4 @@ protected:
 	// cWSSchema overrides:
 	virtual bool LoadChunk(const cChunkCoords & a_Chunk) override;
 	virtual bool SaveChunk(const cChunkCoords & a_Chunk) override;
-	virtual const AString GetName() const override {return "anvil"; }
 } ;

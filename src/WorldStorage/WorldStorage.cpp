@@ -3,32 +3,10 @@
 
 // Implements the cWorldStorage class representing the chunk loading / saving thread
 
-// To add a new storage schema, implement a cWSSchema descendant and add it to cWorldStorage::InitSchemas()
-
 #include "Globals.h"
 #include "WorldStorage.h"
 #include "WSSAnvil.h"
 #include "../World.h"
-#include "../Generating/ChunkGenerator.h"
-#include "../Entities/Entity.h"
-#include "../BlockEntities/BlockEntity.h"
-
-
-
-
-/** Example storage schema - forgets all chunks */
-class cWSSForgetful :
-	public cWSSchema
-{
-public:
-	cWSSForgetful(cWorld * a_World) : cWSSchema(a_World) {}
-
-protected:
-	// cWSSchema overrides:
-	virtual bool LoadChunk(const cChunkCoords & a_Chunk) override {return false; }
-	virtual bool SaveChunk(const cChunkCoords & a_Chunk) override {return true; }
-	virtual const AString GetName(void) const override {return "forgetful"; }
-} ;
 
 
 
@@ -39,8 +17,7 @@ protected:
 
 cWorldStorage::cWorldStorage(void) :
 	Super("World Storage Executor"),
-	m_World(nullptr),
-	m_SaveSchema(nullptr)
+	m_World(nullptr)
 {
 }
 
@@ -48,23 +25,34 @@ cWorldStorage::cWorldStorage(void) :
 
 
 
-cWorldStorage::~cWorldStorage()
-{
-	for (cWSSchemaList::iterator itr = m_Schemas.begin(); itr != m_Schemas.end(); ++itr)
-	{
-		delete *itr;
-	}  // for itr - m_Schemas[]
-}
+cWorldStorage::~cWorldStorage() = default;
 
 
 
 
 
-void cWorldStorage::Initialize(cWorld & a_World, const AString & a_StorageSchemaName, int a_StorageCompressionFactor)
+void cWorldStorage::Initialize(
+	cWorld & a_World,
+	eWorldStorageFormat a_Format,
+	const AString & a_StorageSchemaName,
+	int a_StorageCompressionFactor
+)
 {
 	m_World = &a_World;
-	m_StorageSchemaName = a_StorageSchemaName;
-	InitSchemas(a_StorageCompressionFactor);
+	m_DiscardSaves = (NoCaseCompare(a_StorageSchemaName, "forgetful") == 0);
+	if (!m_DiscardSaves && (NoCaseCompare(a_StorageSchemaName, "default") != 0) && (NoCaseCompare(a_StorageSchemaName, "anvil") != 0))
+	{
+		LOGWARNING("Unknown storage schema '%s' for world '%s'. Using the detected format.", a_StorageSchemaName, a_World.GetName());
+	}
+
+	switch (a_Format)
+	{
+		case eWorldStorageFormat::LegacyAnvil:
+		{
+			m_Schema = std::make_unique<cWSSAnvil>(&a_World, a_StorageCompressionFactor);
+			break;
+		}
+	}
 }
 
 
@@ -164,42 +152,6 @@ void cWorldStorage::QueueSaveChunk(int a_ChunkX, int a_ChunkZ)
 
 
 
-void cWorldStorage::InitSchemas(int a_StorageCompressionFactor)
-{
-	// The first schema added is considered the default
-	m_Schemas.push_back(new cWSSAnvil    (m_World, a_StorageCompressionFactor));
-	m_Schemas.push_back(new cWSSForgetful(m_World));
-	// Add new schemas here
-
-	if (NoCaseCompare(m_StorageSchemaName, "default") == 0)
-	{
-		m_SaveSchema = m_Schemas.front();
-		return;
-	}
-	for (cWSSchemaList::iterator itr = m_Schemas.begin(); itr != m_Schemas.end(); ++itr)
-	{
-		if (NoCaseCompare((*itr)->GetName(), m_StorageSchemaName) == 0)
-		{
-			m_SaveSchema = *itr;
-			return;
-		}
-	}  // for itr - m_Schemas[]
-
-	// Unknown schema selected, let the admin know:
-	LOGWARNING("Unknown storage schema name \"%s\". Using default (\"%s\"). Available schemas:",
-		m_StorageSchemaName.c_str(), m_SaveSchema->GetName().c_str()
-	);
-	for (cWSSchemaList::iterator itr = m_Schemas.begin(); itr != m_Schemas.end(); ++itr)
-	{
-		LOGWARNING("\t\"%s\"", (*itr)->GetName().c_str());
-	}
-	m_SaveSchema = m_Schemas.front();
-}
-
-
-
-
-
 void cWorldStorage::Execute(void)
 {
 	while (!m_ShouldTerminate)
@@ -258,7 +210,7 @@ bool cWorldStorage::SaveOneChunk(void)
 	if (m_World->IsChunkValid(ToSave.m_ChunkX, ToSave.m_ChunkZ))
 	{
 		m_World->MarkChunkSaving(ToSave.m_ChunkX, ToSave.m_ChunkZ);
-		if (m_SaveSchema->SaveChunk(cChunkCoords(ToSave.m_ChunkX, ToSave.m_ChunkZ)))
+		if (m_DiscardSaves || m_Schema->SaveChunk(ToSave))
 		{
 			m_World->MarkChunkSaved(ToSave.m_ChunkX, ToSave.m_ChunkZ);
 		}
@@ -275,21 +227,9 @@ bool cWorldStorage::LoadChunk(int a_ChunkX, int a_ChunkZ)
 {
 	ASSERT(m_World->IsChunkQueued(a_ChunkX, a_ChunkZ));
 
-	cChunkCoords Coords(a_ChunkX, a_ChunkZ);
-
-	// First try the schema that is used for saving
-	if (m_SaveSchema->LoadChunk(Coords))
+	if (m_Schema->LoadChunk({ a_ChunkX, a_ChunkZ }))
 	{
 		return true;
-	}
-
-	// If it didn't have the chunk, try all the other schemas:
-	for (cWSSchemaList::iterator itr = m_Schemas.begin(); itr != m_Schemas.end(); ++itr)
-	{
-		if (((*itr) != m_SaveSchema) && (*itr)->LoadChunk(Coords))
-		{
-			return true;
-		}
 	}
 
 	// Notify the chunk owner that the chunk failed to load (sets cChunk::m_HasLoadFailed to true):
