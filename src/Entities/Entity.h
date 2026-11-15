@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "WorldStorage/PalettedEntityData.h"
+
 #include "../BoundingBox.h"
 #include "../Item.h"
 #include "../OSSupport/AtomicUniquePtr.h"
@@ -150,6 +152,9 @@ public:
 	e.g. When the entity is destroyed or moved to a different world.
 	\param a_World The world being removed from. */
 	virtual void OnRemoveFromWorld(cWorld & a_World);
+
+	const cPalettedEntityData * GetPalettedStorageData() const { return m_PalettedStorageData.get(); }
+	void SetPalettedStorageData(std::unique_ptr<cPalettedEntityData> a_Data) { m_PalettedStorageData = std::move(a_Data); }
 
 	// tolua_begin
 
@@ -732,4 +737,7 @@ private:
 
 	/** List of players who are spectating this entity. */
 	std::vector<cPlayer *> m_Spectators;
+
+private:
+	std::unique_ptr<cPalettedEntityData> m_PalettedStorageData;
 } ;  // tolua_export

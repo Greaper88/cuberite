@@ -81,8 +81,12 @@ cWorldStorageFormat SelectWorldStorageFormat(const AString & a_WorldPath)
 	}
 	if (MetadataPath.empty())
 	{
-		// New worlds and markerless legacy regions use the complete legacy Java schema.
-		return {eWorldStorageFormat::LegacyAnvil, 0, false, {}, {}};
+		if (HasRegionFiles(Base + "region", ".mca"))
+		{
+			// Cuberite used to allow legacy worlds consisting only of region files.
+			return {eWorldStorageFormat::LegacyAnvil, 0, false, {}, {}};
+		}
+		return {eWorldStorageFormat::PalettedAnvil, CurrentJavaWorldDataVersion, false, {}, {}};
 	}
 
 	cWorldStorageFormat Format{eWorldStorageFormat::LegacyAnvil, 0, true, {}, {}};

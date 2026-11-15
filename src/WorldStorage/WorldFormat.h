@@ -23,6 +23,9 @@ struct cWorldStorageFormat
 	std::optional<Int64> Seed;
 };
 
+/** Java 1.15.2, the default Anvil data version for new worlds. */
+constexpr int CurrentJavaWorldDataVersion = 2230;
+
 /** Last Java release data version that uses numeric block IDs in Anvil chunks. */
 constexpr int LegacyAnvilMaxDataVersion = 1343;
 

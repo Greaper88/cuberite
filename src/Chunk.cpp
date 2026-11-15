@@ -312,6 +312,10 @@ void cChunk::GetAllData(cChunkDataCallback & a_Callback) const
 	a_Callback.ChunkData(m_BlockData, m_LightData);
 	a_Callback.HeightMap(m_HeightMap);
 	a_Callback.BiomeMap(m_BiomeMap);
+	if (m_UnloadedEntities != nullptr)
+	{
+		a_Callback.UnloadedEntities(*m_UnloadedEntities);
+	}
 
 	for (const auto & Entity : m_Entities)
 	{
@@ -368,6 +372,7 @@ void cChunk::SetAllData(SetChunkData && a_SetChunkData)
 
 	// Clear the old ones:
 	m_BlockEntities = std::move(a_SetChunkData.BlockEntities);
+	m_UnloadedEntities = std::move(a_SetChunkData.UnloadedEntities);
 
 	// Check that all block entities have a valid blocktype at their respective coords (DEBUG-mode only):
 
@@ -699,7 +704,10 @@ void cChunk::Tick(std::chrono::milliseconds a_Dt)
 	// Tick all block entities in this chunk:
 	for (auto & KeyPair : m_BlockEntities)
 	{
-		m_IsDirty = KeyPair.second->Tick(a_Dt, *this) | m_IsDirty;
+		if (KeyPair.second->Tick(a_Dt, *this))
+		{
+			MarkDirty();
+		}
 	}
 
 	for (auto itr = m_Entities.begin(); itr != m_Entities.end();)
@@ -716,6 +724,10 @@ void cChunk::Tick(std::chrono::milliseconds a_Dt)
 			// Tick all entities in this chunk (except mobs):
 			ASSERT((*itr)->GetParentChunk() == this);
 			(*itr)->Tick(a_Dt, *this);
+			if (m_World->UsesPalettedAnvil() && !(*itr)->IsPlayer() && !(*itr)->IsFloater())
+			{
+				MarkDirty();
+			}
 			ASSERT((*itr)->GetParentChunk() == this);
 		}
 

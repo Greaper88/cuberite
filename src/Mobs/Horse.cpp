@@ -194,17 +194,21 @@ void cHorse::OnRightClicked(cPlayer & a_Player)
 
 void cHorse::SetHorseSaddle(cItem a_Saddle)
 {
-	if (a_Saddle.m_ItemType == E_ITEM_SADDLE)
+	const bool ValidItem = (a_Saddle.m_ItemType == E_ITEM_SADDLE);
+	if (!ValidItem && !a_Saddle.IsEmpty())
 	{
-		m_World->BroadcastSoundEffect("entity.horse.saddle", GetPosition(), 1.0f, 0.8f);
-	}
-	else if (!a_Saddle.IsEmpty())
-	{
-		return;  // Invalid item
+		return;
 	}
 
 	m_Saddle = std::move(a_Saddle);
-	m_World->BroadcastEntityMetadata(*this);
+	if (m_World != nullptr)
+	{
+		if (ValidItem)
+		{
+			m_World->BroadcastSoundEffect("entity.horse.saddle", GetPosition(), 1.0f, 0.8f);
+		}
+		m_World->BroadcastEntityMetadata(*this);
+	}
 }
 
 
@@ -213,17 +217,21 @@ void cHorse::SetHorseSaddle(cItem a_Saddle)
 
 void cHorse::SetHorseArmor(cItem a_Armor)
 {
-	if (ItemCategory::IsHorseArmor(a_Armor.m_ItemType))
+	const bool ValidItem = (ItemCategory::IsHorseArmor(a_Armor.m_ItemType));
+	if (!ValidItem && !a_Armor.IsEmpty())
 	{
-		m_World->BroadcastSoundEffect("entity.horse.armor", GetPosition(), 1.0f, 0.8f);
-	}
-	else if (!a_Armor.IsEmpty())
-	{
-		return;  // Invalid item
+		return;
 	}
 
 	m_Armor = std::move(a_Armor);
-	m_World->BroadcastEntityMetadata(*this);
+	if (m_World != nullptr)
+	{
+		if (ValidItem)
+		{
+			m_World->BroadcastSoundEffect("entity.horse.armor", GetPosition(), 1.0f, 0.8f);
+		}
+		m_World->BroadcastEntityMetadata(*this);
+	}
 }
 
 

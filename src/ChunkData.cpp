@@ -283,6 +283,17 @@ void ChunkBlockData::SetMeta(const Vector3i a_Position, const NIBBLETYPE a_Meta)
 
 
 
+void ChunkBlockData::SetNamedProjection(Vector3i a_Position, BLOCKTYPE a_Block, NIBBLETYPE a_Meta)
+{
+	ASSERT(GetNamedBlock(a_Position) != nullptr);
+	m_Blocks.Set(a_Position, a_Block);
+	m_Metas.Set(a_Position, a_Meta);
+}
+
+
+
+
+
 void ChunkBlockData::SetAll(const cChunkDef::BlockTypes & a_BlockSource, const cChunkDef::BlockNibbles & a_MetaSource)
 {
 	for (size_t Y = 0; Y != cChunkDef::NumSections; ++Y)

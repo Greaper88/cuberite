@@ -33,6 +33,7 @@ public:
 	bool IsRearing      (void) const  {return m_bIsRearing; }
 	bool IsMthOpen      (void) const  {return m_bIsMouthOpen; }
 	bool IsTame         (void) const override {return m_bIsTame; }
+	void SetTame(bool a_Tame) { m_bIsTame = a_Tame; }
 	int  GetHorseType   (void) const  {return m_Type; }
 	int  GetHorseColor  (void) const  {return m_Color; }
 	int  GetHorseStyle  (void) const  {return m_Style; }

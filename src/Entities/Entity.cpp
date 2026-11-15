@@ -899,7 +899,12 @@ void cEntity::Heal(int a_HitPoints)
 
 void cEntity::SetHealth(float a_Health)
 {
-	m_Health = Clamp(a_Health, 0.0f, m_MaxHealth);
+	const auto ClampedHealth = Clamp(a_Health, 0.0f, m_MaxHealth);
+	if ((m_Health != ClampedHealth) && (m_ParentChunk != nullptr) && m_World->UsesPalettedAnvil() && !IsPlayer())
+	{
+		m_ParentChunk->MarkDirty();
+	}
+	m_Health = ClampedHealth;
 }
 
 
@@ -2290,6 +2295,10 @@ void cEntity::SetPosition(const Vector3d & a_Position)
 
 	m_LastPosition = m_Position;
 	m_Position = {ClampedPosX, ClampedPosY, ClampedPosZ};
+	if ((m_LastPosition != m_Position) && (m_ParentChunk != nullptr) && m_World->UsesPalettedAnvil() && !IsPlayer())
+	{
+		m_ParentChunk->MarkDirty();
+	}
 }
 
 

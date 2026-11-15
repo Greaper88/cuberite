@@ -7,6 +7,8 @@
 
 
 // fwd:
+class cBlockEntity;
+class cEntity;
 class cFastNBTWriter;
 class cWorld;
 
@@ -23,4 +25,10 @@ public:
 
 	/** Serializes the chunk into the specified writer. The chunk must be present. */
 	static void Serialize(const cWorld & aWorld, cChunkCoords aCoords, cFastNBTWriter & aWriter);
+
+	/** Encodes one native Java entity compound. Empty output means the entity has no representation in the target version. */
+	static ContiguousByteBuffer SerializeEntity(cEntity & a_Entity, int a_DataVersion);
+
+	/** Encodes one native Java block entity compound. Empty output means the block stores its state outside block-entity NBT. */
+	static ContiguousByteBuffer SerializeBlockEntity(cBlockEntity & a_Entity, int a_DataVersion);
 };

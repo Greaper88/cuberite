@@ -6,6 +6,9 @@
 #include "NBTChunkSerializer.h"
 #include "EnchantmentSerializer.h"
 #include "NamespaceSerializer.h"
+#include "PalettedItemNBT.h"
+#include "../Protocol/Palettes/NamedBlockPalette.h"
+#include "../JsonUtils.h"
 #include "../ChunkDataCallback.h"
 #include "../ItemGrid.h"
 #include "../StringCompression.h"
@@ -53,6 +56,158 @@
 
 
 
+namespace
+{
+	std::string_view NativeMobID(eMonsterType a_Type, int a_DataVersion)
+	{
+		switch (a_Type)
+		{
+			case mtZombiePigman:
+			{
+				return "zombie_pigman";
+			}
+			case mtCat:
+			case mtFox:
+			case mtPanda:
+			case mtPillager:
+			case mtRavager:
+			case mtTraderLlama:
+			case mtWanderingTrader:
+			{
+				return (a_DataVersion >= 1952) ? NamespaceSerializer::From(a_Type) : std::string_view{};
+			}
+			case mtHoglin:
+			case mtPiglin:
+			case mtPiglinBrute:
+			case mtStrider:
+			case mtZoglin:
+			case mtInvalidType:
+			{
+				return {};
+			}
+			default:
+			{
+				return NamespaceSerializer::From(a_Type);
+			}
+		}
+	}
+
+	bool UsesNativeCatRecord(const cOcelot & a_Ocelot, int a_DataVersion)
+	{
+		return (a_DataVersion >= 1952) && (a_Ocelot.IsTame() || (a_Ocelot.GetOcelotType() != cOcelot::ctWildOcelot));
+	}
+
+	std::string_view NativeMobID(const cMonster & a_Monster, int a_DataVersion)
+	{
+		const auto Type = a_Monster.GetMobType();
+		if ((Type == mtOcelot) && UsesNativeCatRecord(static_cast<const cOcelot &>(a_Monster), a_DataVersion))
+		{
+			return "cat";
+		}
+		if (Type == mtHorse)
+		{
+			// Cuberite represents the whole legacy horse family with one engine class.
+			static constexpr std::array<std::string_view, 5> HorseIDs = {"horse", "donkey", "mule", "zombie_horse", "skeleton_horse"};
+			const auto Variant = static_cast<size_t>(static_cast<const cHorse &>(a_Monster).GetHorseType());
+			return (Variant < HorseIDs.size()) ? HorseIDs[Variant] : HorseIDs.front();
+		}
+		return NativeMobID(Type, a_DataVersion);
+	}
+
+	std::string_view NativeEntityID(std::string_view a_LegacyID)
+	{
+		static constexpr std::pair<std::string_view, std::string_view> IDs[] =
+		{
+			{"Arrow", "arrow"},
+			{"Boat", "boat"},
+			{"Egg", "egg"},
+			{"EnderCrystal", "end_crystal"},
+			{"FallingSand", "falling_block"},
+			{"Fireball", "fireball"},
+			{"Firework", "firework_rocket"},
+			{"Item", "item"},
+			{"ItemFrame", "item_frame"},
+			{"LeashKnot", "leash_knot"},
+			{"MinecartChest", "chest_minecart"},
+			{"MinecartFurnace", "furnace_minecart"},
+			{"MinecartHopper", "hopper_minecart"},
+			{"MinecartRideable", "minecart"},
+			{"MinecartTNT", "tnt_minecart"},
+			{"Painting", "painting"},
+			{"PrimedTnt", "tnt"},
+			{"SmallFireball", "small_fireball"},
+			{"Snowball", "snowball"},
+			{"SplashPotion", "potion"},
+			{"ThrownEnderpearl", "ender_pearl"},
+			{"ThrownExpBottle", "experience_bottle"},
+			{"WitherSkull", "wither_skull"},
+			{"XPOrb", "experience_orb"},
+		};
+		const auto Found = std::find_if(std::begin(IDs), std::end(IDs), [a_LegacyID](const auto & a_Entry)
+		{
+			return a_Entry.first == a_LegacyID;
+		});
+		return (Found == std::end(IDs)) ? a_LegacyID : Found->second;
+	}
+
+	std::string_view NativeBlockEntityID(std::string_view a_LegacyID, BLOCKTYPE a_Block)
+	{
+		static constexpr std::pair<std::string_view, std::string_view> IDs[] =
+		{
+			{"Banner", "banner"},
+			{"Beacon", "beacon"},
+			{"Bed", "bed"},
+			{"Brewingstand", "brewing_stand"},
+			{"Chest", "chest"},
+			{"Control", "command_block"},
+			{"Dropper", "dropper"},
+			{"EnchantingTable", "enchanting_table"},
+			{"EnderChest", "ender_chest"},
+			{"EndPortal", "end_portal"},
+			{"Furnace", "furnace"},
+			{"Hopper", "hopper"},
+			{"MobSpawner", "mob_spawner"},
+			{"RecordPlayer", "jukebox"},
+			{"Sign", "sign"},
+			{"Skull", "skull"},
+			{"Trap", "dispenser"},
+		};
+		if (a_Block == E_BLOCK_TRAPPED_CHEST)
+		{
+			return "trapped_chest";
+		}
+		const auto Found = std::find_if(std::begin(IDs), std::end(IDs), [a_LegacyID](const auto & a_Entry)
+		{
+			return a_Entry.first == a_LegacyID;
+		});
+		if (Found == std::end(IDs))
+		{
+			throw std::runtime_error(fmt::format(FMT_STRING("Missing native block entity ID for {}"), a_LegacyID));
+		}
+		return Found->second;
+	}
+
+	ContiguousByteBuffer UnwrapEntityRecord(const cFastNBTWriter & a_Wrapped)
+	{
+		const cParsedNBT Parsed(a_Wrapped.GetResult());
+		ASSERT(Parsed.IsValid());
+		const auto Compound = Parsed.GetFirstChild(0);
+		if (Compound < 0)
+		{
+			return {};
+		}
+		ASSERT(Parsed.GetType(Compound) == TAG_Compound);
+		ASSERT(Parsed.GetNextSibling(Compound) < 0);
+		ContiguousByteBuffer Result{std::byte{TAG_Compound}, std::byte{}, std::byte{}};
+		Result.append(Parsed.GetTagPayload(Compound));
+		return Result;
+	}
+}
+
+
+
+
+
 /** Collects and stores the chunk data via the cChunkDataCallback interface */
 class SerializerCollector final :
 	public cChunkDataCopyCollector
@@ -78,16 +233,19 @@ public:
 	/** The NBT writer used to store the data. */
 	cFastNBTWriter & mWriter;
 
+	const int mDataVersion;
 
 
 
 
-	SerializerCollector(cFastNBTWriter & aWriter):
+
+	explicit SerializerCollector(cFastNBTWriter & aWriter, int a_DataVersion = 0):
 		mIsTagOpen(false),
 		mHasHadEntity(false),
 		mHasHadBlockEntity(false),
 		mIsLightValid(false),
-		mWriter(aWriter)
+		mWriter(aWriter),
+		mDataVersion(a_DataVersion)
 	{
 	}
 
@@ -159,6 +317,19 @@ public:
 		mIsTagOpen = true;
 		mHasHadEntity = true;
 
+		AddEntityRecord(a_Entity);
+	}
+
+
+
+
+
+	void AddEntityRecord(cEntity * a_Entity)
+	{
+		if (IsNative() && a_Entity->IsMob() && NativeMobID(static_cast<const cMonster &>(*a_Entity).GetMobType(), mDataVersion).empty())
+		{
+			return;
+		}
 		switch (a_Entity->GetEntityType())
 		{
 			case cEntity::etBoat:         AddBoatEntity        (static_cast<cBoat *>            (a_Entity)); break;
@@ -203,8 +374,23 @@ public:
 		}
 		mIsTagOpen = true;
 
-		// Add tile-entity into NBT:
-		switch (a_Entity->GetBlockType())
+		AddBlockEntityRecord(a_Entity);
+		mHasHadBlockEntity = true;
+	}
+
+
+
+
+
+	void AddBlockEntityRecord(cBlockEntity * a_Entity)
+	{
+		const auto Type = a_Entity->GetBlockType();
+		if (IsNative() && ((Type == E_BLOCK_NOTE_BLOCK) || (Type == E_BLOCK_FLOWER_POT)))
+		{
+			return;  // These became palette states in Java 1.13.
+		}
+
+		switch (Type)
 		{
 			// Banners:
 			case E_BLOCK_STANDING_BANNER:
@@ -237,7 +423,6 @@ public:
 				ASSERT(!"Unhandled block entity saved into Anvil");
 			}
 		}
-		mHasHadBlockEntity = true;
 	}
 
 
@@ -268,11 +453,56 @@ public:
 
 
 
+	bool IsNative() const
+	{
+		return mDataVersion != 0;
+	}
+
+
+
+
+
+	void AddText(const AString & a_Tag, const AString & a_Text)
+	{
+		mWriter.AddString(a_Tag, IsNative() ? JsonUtils::SerializeSingleValueJsonObject("text", a_Text) : a_Text);
+	}
+
+
+
+
+
+	void AddNativeBlockState(const AString & a_Tag, BLOCKTYPE a_Type, NIBBLETYPE a_Meta)
+	{
+		const auto & State = NamedBlockPalette::FromLegacy(mDataVersion, a_Type, a_Meta);
+		mWriter.BeginCompound(a_Tag);
+		mWriter.AddString("Name", State.Name);
+		if (!State.Properties.empty())
+		{
+			mWriter.BeginCompound("Properties");
+			for (const auto & [Name, Value] : State.Properties)
+			{
+				mWriter.AddString(Name, Value);
+			}
+			mWriter.EndCompound();
+		}
+		mWriter.EndCompound();
+	}
+
+
+
+
+
 	/** Writes an item into the writer.
 	If aSlot >= 0, adds the Slot tag.
 	The compound is named as requested (empty name by default). */
 	void AddItem(const cItem & a_Item, int a_Slot, const AString & a_CompoundName = AString())
 	{
+		if (IsNative())
+		{
+			PalettedItemNBT::Write(mWriter, a_Item, a_Slot, a_CompoundName, mDataVersion);
+			return;
+		}
+
 		mWriter.BeginCompound(a_CompoundName);
 		mWriter.AddShort("id",         static_cast<Int16>(a_Item.m_ItemType));
 		mWriter.AddShort("Damage",     static_cast<Int16>((a_Item.m_ItemDamage)));
@@ -364,7 +594,14 @@ public:
 		mWriter.AddInt   ("x",  a_Entity->GetPosX());
 		mWriter.AddInt   ("y",  a_Entity->GetPosY());
 		mWriter.AddInt   ("z",  a_Entity->GetPosZ());
-		mWriter.AddString("id", a_EntityTypeID);
+		if (IsNative())
+		{
+			mWriter.AddString("id", fmt::format(FMT_STRING("minecraft:{}"), NativeBlockEntityID(a_EntityTypeID, a_Entity->GetBlockType())));
+		}
+		else
+		{
+			mWriter.AddString("id", a_EntityTypeID);
+		}
 	}
 
 
@@ -375,10 +612,13 @@ public:
 	{
 		mWriter.BeginCompound("");
 			AddBasicTileEntity(a_Entity,"Banner");
-			mWriter.AddInt("Base", static_cast<int>(a_Entity->GetBaseColor()));
+			if (!IsNative())
+			{
+				mWriter.AddInt("Base", static_cast<int>(a_Entity->GetBaseColor()));
+			}
 			if (!a_Entity->GetCustomName().empty())
 			{
-				mWriter.AddString("CustomName", a_Entity->GetCustomName());
+				AddText("CustomName", a_Entity->GetCustomName());
 			}
 		mWriter.EndCompound();
 	}
@@ -424,7 +664,14 @@ public:
 				AddItemGrid(a_Brewingstand->GetContents());
 			mWriter.EndList();
 			mWriter.AddShort("BrewTime", a_Brewingstand->GetTimeBrewed());
-			mWriter.AddShort("Fuel", a_Brewingstand->GetRemainingFuel());
+			if (IsNative())
+			{
+				mWriter.AddByte("Fuel", static_cast<Byte>(a_Brewingstand->GetRemainingFuel()));
+			}
+			else
+			{
+				mWriter.AddShort("Fuel", a_Brewingstand->GetRemainingFuel());
+			}
 		mWriter.EndCompound();
 	}
 
@@ -480,7 +727,7 @@ public:
 			AddBasicTileEntity(a_Entity, "EnchantingTable");
 			if (!a_Entity->GetCustomName().empty())
 			{
-				mWriter.AddString("CustomName", a_Entity->GetCustomName());
+				AddText("CustomName", a_Entity->GetCustomName());
 			}
 		mWriter.EndCompound();
 	}
@@ -518,6 +765,10 @@ public:
 			mWriter.EndList();
 			mWriter.AddShort("BurnTime", static_cast<Int16>(a_Furnace->GetFuelBurnTimeLeft()));
 			mWriter.AddShort("CookTime", static_cast<Int16>(a_Furnace->GetTimeCooked()));
+			if (IsNative())
+			{
+				mWriter.AddShort("CookTimeTotal", static_cast<Int16>(a_Furnace->GetTimeCooked() + a_Furnace->GetCookTimeLeft()));
+			}
 		mWriter.EndCompound();
 	}
 
@@ -543,7 +794,17 @@ public:
 	{
 		mWriter.BeginCompound("");
 			AddBasicTileEntity(a_Jukebox, "RecordPlayer");
-			mWriter.AddInt("Record", a_Jukebox->GetRecord());
+			if (IsNative())
+			{
+				if (a_Jukebox->GetRecord() > 0)
+				{
+					AddItem(cItem(static_cast<short>(a_Jukebox->GetRecord())), -1, "RecordItem");
+				}
+			}
+			else
+			{
+				mWriter.AddInt("Record", a_Jukebox->GetRecord());
+			}
 		mWriter.EndCompound();
 	}
 
@@ -555,7 +816,21 @@ public:
 	{
 		mWriter.BeginCompound("");
 			AddBasicTileEntity(a_MobSpawner, "MobSpawner");
-			mWriter.AddString("EntityId", NamespaceSerializer::From(a_MobSpawner->GetEntity()));
+			if (IsNative())
+			{
+				const auto ID = NativeMobID(a_MobSpawner->GetEntity(), mDataVersion);
+				if (ID.empty())
+				{
+					throw std::runtime_error("Spawner entity has no native ID in this world version");
+				}
+				mWriter.BeginCompound("SpawnData");
+				mWriter.AddString("id", fmt::format(FMT_STRING("minecraft:{}"), ID));
+				mWriter.EndCompound();
+			}
+			else
+			{
+				mWriter.AddString("EntityId", NamespaceSerializer::From(a_MobSpawner->GetEntity()));
+			}
 			mWriter.AddShort("SpawnCount", a_MobSpawner->GetSpawnCount());
 			mWriter.AddShort("SpawnRange", a_MobSpawner->GetSpawnRange());
 			mWriter.AddShort("Delay", a_MobSpawner->GetSpawnDelay());
@@ -601,10 +876,10 @@ public:
 	{
 		mWriter.BeginCompound("");
 			AddBasicTileEntity(a_Sign, "Sign");
-			mWriter.AddString("Text1",   a_Sign->GetLine(0));
-			mWriter.AddString("Text2",   a_Sign->GetLine(1));
-			mWriter.AddString("Text3",   a_Sign->GetLine(2));
-			mWriter.AddString("Text4",   a_Sign->GetLine(3));
+			AddText("Text1", a_Sign->GetLine(0));
+			AddText("Text2", a_Sign->GetLine(1));
+			AddText("Text3", a_Sign->GetLine(2));
+			AddText("Text4", a_Sign->GetLine(3));
 		mWriter.EndCompound();
 	}
 
@@ -616,21 +891,45 @@ public:
 	{
 		mWriter.BeginCompound("");
 			AddBasicTileEntity(a_MobHead, "Skull");
-			mWriter.AddByte  ("SkullType", a_MobHead->GetType() & 0xFF);
-			mWriter.AddByte  ("Rot",       a_MobHead->GetRotation() & 0xFF);
+			if (!IsNative())
+			{
+				mWriter.AddByte("SkullType", a_MobHead->GetType() & 0xFF);
+				mWriter.AddByte("Rot", a_MobHead->GetRotation() & 0xFF);
+			}
+			if (IsNative() && a_MobHead->GetOwnerUUID().IsNil() && a_MobHead->GetOwnerName().empty())
+			{
+				mWriter.EndCompound();
+				return;
+			}
 
 			// The new Block Entity format for a Mob Head. See: https://minecraft.wiki/w/Head#Block_entity
 			mWriter.BeginCompound("Owner");
-				mWriter.AddString("Id", a_MobHead->GetOwnerUUID().ToShortString());
-				mWriter.AddString("Name", a_MobHead->GetOwnerName());
-				mWriter.BeginCompound("Properties");
+				const auto & Owner = a_MobHead->GetOwnerUUID();
+				if (!IsNative() || !Owner.IsNil())
+				{
+					mWriter.AddString("Id", IsNative() ? Owner.ToLongString() : Owner.ToShortString());
+				}
+				const auto Name = a_MobHead->GetOwnerName();
+				if (!IsNative() || !Name.empty())
+				{
+					mWriter.AddString("Name", Name);
+				}
+				const auto Texture = a_MobHead->GetOwnerTexture();
+				if (!IsNative() || !Texture.empty())
+				{
+					mWriter.BeginCompound("Properties");
 					mWriter.BeginList("textures", TAG_Compound);
-						mWriter.BeginCompound("");
-							mWriter.AddString("Signature", a_MobHead->GetOwnerTextureSignature());
-							mWriter.AddString("Value", a_MobHead->GetOwnerTexture());
-						mWriter.EndCompound();
+					mWriter.BeginCompound("");
+					const auto Signature = a_MobHead->GetOwnerTextureSignature();
+					if (!IsNative() || !Signature.empty())
+					{
+						mWriter.AddString("Signature", Signature);
+					}
+					mWriter.AddString("Value", Texture);
+					mWriter.EndCompound();
 					mWriter.EndList();
-				mWriter.EndCompound();
+					mWriter.EndCompound();
+				}
 			mWriter.EndCompound();
 		mWriter.EndCompound();
 	}
@@ -654,7 +953,15 @@ public:
 
 	void AddBasicEntity(cEntity * a_Entity, const std::string_view a_ClassName)
 	{
-		mWriter.AddString("id", a_ClassName);
+		if (IsNative())
+		{
+			const auto ID = a_Entity->IsMob() ? NativeMobID(static_cast<const cMonster &>(*a_Entity), mDataVersion) : NativeEntityID(a_ClassName);
+			mWriter.AddString("id", fmt::format(FMT_STRING("minecraft:{}"), ID));
+		}
+		else
+		{
+			mWriter.AddString("id", a_ClassName);
+		}
 		mWriter.BeginList("Pos", TAG_Double);
 			mWriter.AddDouble("", a_Entity->GetPosX());
 			mWriter.AddDouble("", a_Entity->GetPosY());
@@ -665,11 +972,26 @@ public:
 			mWriter.AddDouble("", a_Entity->GetSpeedY());
 			mWriter.AddDouble("", a_Entity->GetSpeedZ());
 		mWriter.EndList();
-		mWriter.BeginList("Rotation", TAG_Double);
+		if (IsNative())
+		{
+			mWriter.BeginList("Rotation", TAG_Float);
+			mWriter.AddFloat("", static_cast<float>(a_Entity->GetYaw()));
+			mWriter.AddFloat("", static_cast<float>(a_Entity->GetPitch()));
+			mWriter.EndList();
+		}
+		else
+		{
+			mWriter.BeginList("Rotation", TAG_Double);
 			mWriter.AddDouble("", a_Entity->GetYaw());
 			mWriter.AddDouble("", a_Entity->GetPitch());
-		mWriter.EndList();
+			mWriter.EndList();
+		}
 		mWriter.AddFloat("Health", a_Entity->GetHealth());
+		if (IsNative())
+		{
+			mWriter.AddShort("Air", static_cast<Int16>(a_Entity->GetAirLevel()));
+			mWriter.AddByte("OnGround", a_Entity->IsOnGround());
+		}
 	}
 
 
@@ -713,9 +1035,17 @@ public:
 	{
 		mWriter.BeginCompound("");
 			AddBasicEntity(a_FallingBlock, "FallingSand");
-			mWriter.AddInt("TileID", a_FallingBlock->GetBlockType());
-			mWriter.AddByte("Data", a_FallingBlock->GetBlockMeta());
-			mWriter.AddByte("Time", 1);  // Unused in Cuberite, Vanilla said to need nonzero
+			if (IsNative())
+			{
+				AddNativeBlockState("BlockState", a_FallingBlock->GetBlockType(), a_FallingBlock->GetBlockMeta());
+				mWriter.AddInt("Time", 1);
+			}
+			else
+			{
+				mWriter.AddInt("TileID", a_FallingBlock->GetBlockType());
+				mWriter.AddByte("Data", a_FallingBlock->GetBlockMeta());
+				mWriter.AddByte("Time", 1);  // Unused in Cuberite, Vanilla said to need nonzero
+			}
 			mWriter.AddByte("DropItem", 1);
 			mWriter.AddByte("HurtEntities", a_FallingBlock->GetBlockType() == E_BLOCK_ANVIL);
 		mWriter.EndCompound();
@@ -769,19 +1099,115 @@ public:
 
 
 
+	void AddNativeMonsterEquipment(const cMonster & a_Monster)
+	{
+		mWriter.BeginList("HandItems", TAG_Compound);
+		AddItem(a_Monster.GetEquippedWeapon(), -1);
+		AddItem(a_Monster.GetOffHandEquipedItem(), -1);
+		mWriter.EndList();
+
+		mWriter.BeginList("ArmorItems", TAG_Compound);
+		AddItem(a_Monster.GetEquippedBoots(), -1);
+		AddItem(a_Monster.GetEquippedLeggings(), -1);
+		AddItem(a_Monster.GetEquippedChestplate(), -1);
+		AddItem(a_Monster.GetEquippedHelmet(), -1);
+		mWriter.EndList();
+	}
+
+
+
+
+
+	void AddVillagerProfession(int a_Profession)
+	{
+		if (!IsNative() || (mDataVersion < 1952))
+		{
+			mWriter.AddInt("Profession", a_Profession);
+			return;
+		}
+
+		static constexpr std::string_view Professions[] =
+		{
+			"minecraft:farmer", "minecraft:librarian", "minecraft:cleric",
+			"minecraft:armorer", "minecraft:butcher", "minecraft:nitwit",
+		};
+		mWriter.BeginCompound("VillagerData");
+		mWriter.AddString("type", "minecraft:plains");
+		const auto Index = static_cast<size_t>(a_Profession);
+		mWriter.AddString("profession", (Index < ARRAYCOUNT(Professions)) ? Professions[Index] : "minecraft:none");
+		mWriter.AddInt("level", 1);
+		mWriter.EndCompound();
+	}
+
+
+
+
+
+	void AddNativeHorse(const cHorse & a_Horse)
+	{
+		mWriter.AddByte("Tame", a_Horse.IsTame());
+		mWriter.AddByte("EatingHaystack", a_Horse.IsEating());
+		mWriter.AddInt("Age", a_Horse.GetAge());
+		const auto Type = a_Horse.GetHorseType();
+		if (Type == 0)
+		{
+			mWriter.AddInt("Variant", a_Horse.GetHorseColor() | (a_Horse.GetHorseStyle() << 8));
+			if (!a_Horse.GetHorseArmorItem().IsEmpty())
+			{
+				AddItem(a_Horse.GetHorseArmorItem(), -1, "ArmorItem");
+			}
+		}
+		else if ((Type == 1) || (Type == 2))
+		{
+			mWriter.AddByte("ChestedHorse", a_Horse.IsChested());
+		}
+		if (a_Horse.IsSaddled())
+		{
+			AddItem(a_Horse.GetHorseSaddle(), -1, "SaddleItem");
+		}
+	}
+
+
+
+
+
 	void AddMonsterEntity(cMonster * a_Monster)
 	{
 		mWriter.BeginCompound("");
 			AddBasicEntity(a_Monster, NamespaceSerializer::From(a_Monster->GetMobType()));
-			mWriter.BeginList("DropChances", TAG_Float);
+			if (IsNative())
+			{
+				mWriter.BeginList("HandDropChances", TAG_Float);
+				mWriter.AddFloat("", a_Monster->GetDropChanceWeapon());
+				mWriter.AddFloat("", 0.085f);
+				mWriter.EndList();
+
+				mWriter.BeginList("ArmorDropChances", TAG_Float);
+				mWriter.AddFloat("", a_Monster->GetDropChanceBoots());
+				mWriter.AddFloat("", a_Monster->GetDropChanceLeggings());
+				mWriter.AddFloat("", a_Monster->GetDropChanceChestplate());
+				mWriter.AddFloat("", a_Monster->GetDropChanceHelmet());
+				mWriter.EndList();
+
+				AddNativeMonsterEquipment(*a_Monster);
+				if (!a_Monster->GetCustomName().empty())
+				{
+					AddText("CustomName", a_Monster->GetCustomName());
+					mWriter.AddByte("PersistenceRequired", 1);
+				}
+			}
+			else
+			{
+				mWriter.BeginList("DropChances", TAG_Float);
 				mWriter.AddFloat("", a_Monster->GetDropChanceWeapon());
 				mWriter.AddFloat("", a_Monster->GetDropChanceHelmet());
 				mWriter.AddFloat("", a_Monster->GetDropChanceChestplate());
 				mWriter.AddFloat("", a_Monster->GetDropChanceLeggings());
 				mWriter.AddFloat("", a_Monster->GetDropChanceBoots());
-			mWriter.EndList();
+				mWriter.EndList();
+				mWriter.AddString("CustomName", a_Monster->GetCustomName());
+			}
 			mWriter.AddByte("CanPickUpLoot", (a_Monster->CanPickUpLoot())? 1 : 0);
-			mWriter.AddString("CustomName", a_Monster->GetCustomName());
 			mWriter.AddByte("CustomNameVisible", static_cast<Byte>(a_Monster->IsCustomNameAlwaysVisible()));
 
 			// Mob was leashed
@@ -803,9 +1229,18 @@ public:
 				if (LeashedToPos != nullptr)
 				{
 					mWriter.BeginCompound("Leash");
-					mWriter.AddDouble("X", LeashedToPos->x);
-					mWriter.AddDouble("Y", LeashedToPos->y);
-					mWriter.AddDouble("Z", LeashedToPos->z);
+					if (IsNative())
+					{
+						mWriter.AddInt("X", FloorC(LeashedToPos->x));
+						mWriter.AddInt("Y", FloorC(LeashedToPos->y));
+						mWriter.AddInt("Z", FloorC(LeashedToPos->z));
+					}
+					else
+					{
+						mWriter.AddDouble("X", LeashedToPos->x);
+						mWriter.AddDouble("Y", LeashedToPos->y);
+						mWriter.AddDouble("Z", LeashedToPos->z);
+					}
 					mWriter.EndCompound();
 				}
 			}
@@ -827,13 +1262,28 @@ public:
 				case mtEnderman:
 				{
 					const cEnderman *Enderman = static_cast<const cEnderman *>(a_Monster);
-					mWriter.AddShort("carried",     static_cast<Int16>(Enderman->GetCarriedBlock()));
-					mWriter.AddShort("carriedData", static_cast<Int16>(Enderman->GetCarriedMeta()));
+					if (IsNative())
+					{
+						if (Enderman->GetCarriedBlock() != E_BLOCK_AIR)
+						{
+							AddNativeBlockState("carriedBlockState", Enderman->GetCarriedBlock(), Enderman->GetCarriedMeta());
+						}
+					}
+					else
+					{
+						mWriter.AddShort("carried",     static_cast<Int16>(Enderman->GetCarriedBlock()));
+						mWriter.AddShort("carriedData", static_cast<Int16>(Enderman->GetCarriedMeta()));
+					}
 					break;
 				}
 				case mtHorse:
 				{
 					const cHorse *Horse = static_cast<const cHorse *>(a_Monster);
+					if (IsNative())
+					{
+						AddNativeHorse(*Horse);
+						break;
+					}
 					mWriter.AddByte("ChestedHorse",   Horse->IsChested()? 1 : 0);
 					mWriter.AddByte("EatingHaystack", Horse->IsEating()? 1 : 0);
 					mWriter.AddByte("Tame",           Horse->IsTame()? 1: 0);
@@ -847,28 +1297,40 @@ public:
 				}
 				case mtMagmaCube:
 				{
-					mWriter.AddInt("Size", static_cast<const cMagmaCube *>(a_Monster)->GetSize());
+					mWriter.AddInt("Size", static_cast<const cMagmaCube *>(a_Monster)->GetSize() - (IsNative() ? 1 : 0));
 					break;
 				}
 				case mtOcelot:
 				{
 					const auto *Ocelot = static_cast<const cOcelot *>(a_Monster);
-					if (!Ocelot->GetOwnerName().empty())
+					const bool NativeCat = IsNative() && UsesNativeCatRecord(*Ocelot, mDataVersion);
+					if (!IsNative() || (mDataVersion < 1952) || NativeCat)
 					{
-						mWriter.AddString("Owner", Ocelot->GetOwnerName());
+						if (!IsNative() && !Ocelot->GetOwnerName().empty())
+						{
+							mWriter.AddString("Owner", Ocelot->GetOwnerName());
+						}
+						if (!Ocelot->GetOwnerUUID().IsNil())
+						{
+							const auto & Owner = Ocelot->GetOwnerUUID();
+							mWriter.AddString("OwnerUUID", IsNative() ? Owner.ToLongString() : Owner.ToShortString());
+						}
+						mWriter.AddByte("Sitting", Ocelot->IsSitting() ? 1 : 0);
+						const auto Coat = Ocelot->GetOcelotType();
+						// Modern cats reserve 0 for tabby. Black and Siamese use their old IDs.
+						mWriter.AddInt("CatType", (NativeCat && (Coat == cOcelot::ctTabby)) ? 0 : Coat);
 					}
-					if (!Ocelot->GetOwnerUUID().IsNil())
-					{
-						mWriter.AddString("OwnerUUID", Ocelot->GetOwnerUUID().ToShortString());
-					}
-					mWriter.AddByte("Sitting", Ocelot->IsSitting() ? 1 : 0);
-					mWriter.AddInt("CatType", Ocelot->GetOcelotType());
 					mWriter.AddInt("Age", Ocelot->GetAge());
 					break;
 				}
 				case mtPig:
 				{
-					mWriter.AddInt("Age", static_cast<const cPig *>(a_Monster)->GetAge());
+					const auto & Pig = static_cast<const cPig &>(*a_Monster);
+					mWriter.AddInt("Age", Pig.GetAge());
+					if (IsNative())
+					{
+						mWriter.AddByte("Saddle", Pig.IsSaddled());
+					}
 					break;
 				}
 				case mtRabbit:
@@ -889,16 +1351,30 @@ public:
 				}
 				case mtSlime:
 				{
-					mWriter.AddInt("Size", static_cast<const cSlime *>(a_Monster)->GetSize());
+					mWriter.AddInt("Size", static_cast<const cSlime *>(a_Monster)->GetSize() - (IsNative() ? 1 : 0));
 					break;
 				}
 				case mtVillager:
 				{
 					const cVillager *Villager = static_cast<const cVillager *>(a_Monster);
-					mWriter.AddInt("Profession", Villager->GetVilType());
-					mWriter.AddInt("Age",        Villager->GetAge());
+					AddVillagerProfession(Villager->GetVilType());
+					mWriter.AddInt("Age", Villager->GetAge());
 					mWriter.BeginList("Inventory", TAG_Compound);
+					if (IsNative())
+					{
+						for (int Slot = 0; Slot < Villager->GetInventory().GetNumSlots(); ++Slot)
+						{
+							const auto & Item = Villager->GetInventory().GetSlot(Slot);
+							if (!Item.IsEmpty())
+							{
+								AddItem(Item, -1);
+							}
+						}
+					}
+					else
+					{
 						AddItemGrid(Villager->GetInventory());
+					}
 					mWriter.EndList();
 					break;
 				}
@@ -910,13 +1386,14 @@ public:
 				case mtWolf:
 				{
 					const cWolf *Wolf = static_cast<const cWolf *>(a_Monster);
-					if (!Wolf->GetOwnerName().empty())
+					if (!IsNative() && !Wolf->GetOwnerName().empty())
 					{
 						mWriter.AddString("Owner", Wolf->GetOwnerName());
 					}
 					if (!Wolf->GetOwnerUUID().IsNil())
 					{
-						mWriter.AddString("OwnerUUID", Wolf->GetOwnerUUID().ToShortString());
+						const auto & Owner = Wolf->GetOwnerUUID();
+						mWriter.AddString("OwnerUUID", IsNative() ? Owner.ToLongString() : Owner.ToShortString());
 					}
 					mWriter.AddByte("Sitting",     Wolf->IsSitting() ? 1 : 0);
 					mWriter.AddByte("Angry",       Wolf->IsAngry() ? 1 : 0);
@@ -925,33 +1402,50 @@ public:
 					break;
 				}
 				case mtZombie:
-				{
-					mWriter.AddInt("Age", static_cast<const cZombie *>(a_Monster)->GetAge());
-					break;
-				}
 				case mtZombiePigman:
 				{
-					mWriter.AddInt("Age", static_cast<const cZombiePigman *>(a_Monster)->GetAge());
+					if (IsNative())
+					{
+						mWriter.AddByte("IsBaby", a_Monster->IsBaby());
+					}
+					else
+					{
+						mWriter.AddInt("Age", a_Monster->GetAge());
+					}
 					break;
 				}
 				case mtZombieVillager:
 				{
 					const cZombieVillager *ZombieVillager = reinterpret_cast<const cZombieVillager *>(a_Monster);
-					mWriter.AddInt("Profession",     ZombieVillager->GetProfession());
+					AddVillagerProfession(ZombieVillager->GetProfession());
 					mWriter.AddInt("ConversionTime", ZombieVillager->ConversionTime());
-					mWriter.AddInt("Age",            ZombieVillager->GetAge());
+					if (IsNative())
+					{
+						mWriter.AddByte("IsBaby", ZombieVillager->IsBaby());
+					}
+					else
+					{
+						mWriter.AddInt("Age", ZombieVillager->GetAge());
+					}
+					break;
+				}
+				case mtChicken:
+				case mtCow:
+				case mtMooshroom:
+				{
+					if (IsNative())
+					{
+						mWriter.AddInt("Age", a_Monster->GetAge());
+					}
 					break;
 				}
 				case mtBlaze:
 				case mtCaveSpider:
-				case mtChicken:
-				case mtCow:
 				case mtEnderDragon:
 				case mtGhast:
 				case mtGiant:
 				case mtGuardian:
 				case mtIronGolem:
-				case mtMooshroom:
 				case mtSilverfish:
 				case mtSkeleton:
 				case mtSnowGolem:
@@ -1042,9 +1536,12 @@ public:
 				{
 					cArrowEntity * Arrow = static_cast<cArrowEntity *>(a_Projectile);
 
-					mWriter.AddShort("xTile", static_cast<Int16>(Arrow->GetBlockHit().x));
-					mWriter.AddShort("yTile", static_cast<Int16>(Arrow->GetBlockHit().y));
-					mWriter.AddShort("zTile", static_cast<Int16>(Arrow->GetBlockHit().z));
+					if (!IsNative())
+					{
+						mWriter.AddShort("xTile", static_cast<Int16>(Arrow->GetBlockHit().x));
+						mWriter.AddShort("yTile", static_cast<Int16>(Arrow->GetBlockHit().y));
+						mWriter.AddShort("zTile", static_cast<Int16>(Arrow->GetBlockHit().z));
+					}
 					mWriter.AddByte("pickup", static_cast<unsigned char>(Arrow->GetPickupState()));
 					mWriter.AddDouble("damage", Arrow->GetDamageCoeff());
 					break;
@@ -1052,6 +1549,12 @@ public:
 				case cProjectileEntity::pkSplashPotion:
 				{
 					cSplashPotionEntity * Potion = static_cast<cSplashPotionEntity *>(a_Projectile);
+
+					if (IsNative())
+					{
+						AddItem(Potion->GetItem(), -1, "Potion");
+						break;
+					}
 
 					mWriter.AddInt("EffectType",                static_cast<Int16>(Potion->GetEntityEffectType()));
 					mWriter.AddInt("EffectDuration",            static_cast<Int16>(Potion->GetEntityEffect().GetDuration()));
@@ -1069,6 +1572,9 @@ public:
 				case cProjectileEntity::pkWitherSkull:
 				case cProjectileEntity::pkEnderPearl:
 				case cProjectileEntity::pkSnowball:
+				case cProjectileEntity::pkEgg:
+				case cProjectileEntity::pkExpBottle:
+				case cProjectileEntity::pkFirework:
 				{
 					break;
 				}
@@ -1105,7 +1611,15 @@ public:
 	{
 		mWriter.BeginCompound("");
 			AddBasicEntity(a_TNT, "PrimedTnt");
-			mWriter.AddByte("Fuse", static_cast<unsigned char>(a_TNT->GetFuseTicks()));
+			if (IsNative())
+			{
+				const auto Fuse = std::min(a_TNT->GetFuseTicks(), static_cast<unsigned>(std::numeric_limits<Int16>::max()));
+				mWriter.AddShort("Fuse", static_cast<Int16>(Fuse));
+			}
+			else
+			{
+				mWriter.AddByte("Fuse", static_cast<unsigned char>(a_TNT->GetFuseTicks()));
+			}
 		mWriter.EndCompound();
 	}
 
@@ -1158,7 +1672,21 @@ public:
 		mWriter.BeginCompound("");
 			AddBasicEntity(a_Painting, "Painting");
 			AddHangingEntity(a_Painting);
-			mWriter.AddString("Motive", a_Painting->GetName());
+			auto Motive = a_Painting->GetName();
+			if (IsNative() && (Motive.find(':') == AString::npos))
+			{
+				AString ID = "minecraft:";
+				for (const char Character : Motive)
+				{
+					if ((ID.size() > 10) && std::isupper(static_cast<unsigned char>(Character)))
+					{
+						ID += '_';
+					}
+					ID += static_cast<char>(std::tolower(static_cast<unsigned char>(Character)));
+				}
+				Motive = std::move(ID);
+			}
+			mWriter.AddString("Motive", Motive);
 		mWriter.EndCompound();
 	}
 
@@ -1266,4 +1794,30 @@ void NBTChunkSerializer::Serialize(const cWorld & aWorld, cChunkCoords aCoords, 
 	aWriter.AddByte("TerrainPopulated", 1);
 
 	aWriter.EndCompound();  // "Level"
+}
+
+
+
+
+
+ContiguousByteBuffer NBTChunkSerializer::SerializeEntity(cEntity & a_Entity, int a_DataVersion)
+{
+	cFastNBTWriter Writer;
+	SerializerCollector Serializer(Writer, a_DataVersion);
+	Serializer.AddEntityRecord(&a_Entity);
+	Writer.Finish();
+	return UnwrapEntityRecord(Writer);
+}
+
+
+
+
+
+ContiguousByteBuffer NBTChunkSerializer::SerializeBlockEntity(cBlockEntity & a_Entity, int a_DataVersion)
+{
+	cFastNBTWriter Writer;
+	SerializerCollector Serializer(Writer, a_DataVersion);
+	Serializer.AddBlockEntityRecord(&a_Entity);
+	Writer.Finish();
+	return UnwrapEntityRecord(Writer);
 }

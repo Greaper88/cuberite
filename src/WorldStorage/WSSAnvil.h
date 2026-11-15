@@ -97,6 +97,9 @@ protected:
 	Compression::Extractor m_Extractor;
 	Compression::Compressor m_Compressor;
 
+	/** Data version of the entity records currently being loaded, or zero for legacy input. */
+	int m_EntityDataVersion = 0;
+
 	/** Reports that the specified chunk failed to load and saves the chunk data to an external file. */
 	void ChunkLoadFailed(const cChunkCoords a_ChunkCoords, const AString & a_Reason, ContiguousByteBufferView a_ChunkDataToSave);
 

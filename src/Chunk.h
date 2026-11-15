@@ -501,6 +501,7 @@ private:
 	std::vector<cClientHandle *> m_LoadedByClient;
 	std::vector<OwnedEntity> m_Entities;
 	cBlockEntities m_BlockEntities;
+	std::unique_ptr<cUnloadedEntityRecords> m_UnloadedEntities;
 
 	/** Number of times the chunk has been requested to stay (by various cChunkStay objects); if zero, the chunk can be unloaded */
 	unsigned m_StayCount;

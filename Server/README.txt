@@ -62,11 +62,11 @@ chunk and light streaming, movement, inventory, and basic block interactions.
 The recipe book, command suggestions, and specialised entity metadata are
 incomplete. Java 1.19.4 and display entities are future milestones.
 
-World storage is selected when a world opens. New worlds use legacy Java
-Anvil, which supports saving the full set of entities Cuberite simulates.
-Java 1.13 through 1.15.2 worlds keep the DataVersion of each existing chunk
-and use the level.dat DataVersion for new chunks. The world format is
-independent of which Java client versions can connect.
+World storage is selected when a world opens. New worlds use Java 1.15.2
+Anvil. Existing legacy worlds keep the numeric Anvil format. Java 1.13
+through 1.15.2 worlds keep the DataVersion of each existing chunk and use the
+level.dat DataVersion for new chunks. The world format is independent of
+which Java client versions can connect.
 
 Use [WorldPaths] in settings.ini to point Cuberite at an existing Java world.
 Point linked Nether and End worlds at its DIM-1 and DIM1 directories when
@@ -75,13 +75,19 @@ directories when they have no local level.dat.
 
 Named states retain their original properties on disk. Older Java clients
 receive compatible blocks, and the simulation uses legacy block behaviors.
-Native entity and block entity records in paletted worlds are preserved as
-NBT. Their gameplay and persistence for newly created entities still need
-support. Cuberite keeps its maps, scoreboard and statistics in a separate
-cuberite directory inside paletted worlds.
+Cuberite loads and saves supported mobs, block entities and inventory stacks
+in the Java format. Records the engine cannot represent, including entities
+with unsupported inventory data, are preserved on disk. Unsupported block
+entities are read-only in play. Cuberite keeps its maps, scoreboard and
+statistics in a separate cuberite directory inside paletted worlds.
 
 Roadmap items include native Bedrock connections over NetherNet, Bedrock
 .mcworld compatibility, and datapack support. A Lua plugin is a possible
 way to implement a subset of datapack features.
+
+AI assistance disclosure
+
+OpenAI Codex contributed to the implementation and testing of paletted
+Anvil entity, block entity and item persistence in this fork.
 
 --------------------------------------------------------------------------------

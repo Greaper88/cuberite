@@ -10,6 +10,7 @@
 #pragma once
 
 #include "ChunkData.h"
+#include "WorldStorage/PalettedEntityData.h"
 
 
 
@@ -40,6 +41,9 @@ public:
 
 	/** Called once to provide biome data. */
 	virtual void BiomeMap(const cChunkDef::BiomeMap & a_BiomeMap) { UNUSED(a_BiomeMap); }
+
+	/** Called for native Java entity records the engine could not load. */
+	virtual void UnloadedEntities(const cUnloadedEntityRecords & a_Records) { UNUSED(a_Records); }
 
 	/** Called for each entity in the chunk */
 	virtual void Entity(cEntity * a_Entity) { UNUSED(a_Entity); }

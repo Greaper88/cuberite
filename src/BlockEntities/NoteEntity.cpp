@@ -269,7 +269,16 @@ unsigned char cNoteEntity::GetNote(void)
 
 void cNoteEntity::SetNote(unsigned char a_Note)
 {
-	m_Note = a_Note % 25;
+	const auto Note = static_cast<unsigned char>(a_Note % 25);
+	if (m_Note == Note)
+	{
+		return;
+	}
+	m_Note = Note;
+	if (m_World != nullptr)
+	{
+		m_World->MarkChunkDirty(GetChunkX(), GetChunkZ());
+	}
 }
 
 

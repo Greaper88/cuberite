@@ -8,6 +8,8 @@ target_sources(
 	NamespaceSerializer.cpp
 	NBTChunkSerializer.cpp
 	PalettedAnvil.cpp
+	PalettedItemNBT.cpp
+	PalettedStateBlockEntities.cpp
 	SchematicFileSerializer.cpp
 	ScoreboardSerializer.cpp
 	StatisticsSerializer.cpp
@@ -23,6 +25,9 @@ target_sources(
 	NamespaceSerializer.h
 	NBTChunkSerializer.h
 	PalettedAnvil.h
+	PalettedEntityData.h
+	PalettedItemNBT.h
+	PalettedStateBlockEntities.h
 	SchematicFileSerializer.h
 	ScoreboardSerializer.h
 	StatisticsSerializer.h

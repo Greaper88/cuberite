@@ -128,6 +128,20 @@ public:
 	void SetAttackDamage(int a_AttackDamage) { m_AttackDamage = a_AttackDamage; }
 	void SetSightDistance(int a_SightDistance) { m_SightDistance = a_SightDistance; }
 
+	// tolua_end
+
+	// Equipment order matches the modern Java entity equipment packet.
+	using Equipment = std::array<cItem, 6>;
+	void SetEquipment(Equipment a_Equipment) { m_Equipment = std::make_unique<Equipment>(std::move(a_Equipment)); }
+	cItem GetEquippedWeapon() const override     { return GetStoredEquipment(0); }
+	cItem GetOffHandEquipedItem() const override { return GetStoredEquipment(1); }
+	cItem GetEquippedBoots() const override      { return GetStoredEquipment(2); }
+	cItem GetEquippedLeggings() const override   { return GetStoredEquipment(3); }
+	cItem GetEquippedChestplate() const override { return GetStoredEquipment(4); }
+	cItem GetEquippedHelmet() const override     { return GetStoredEquipment(5); }
+
+	// tolua_begin
+
 	float GetDropChanceWeapon() { return m_DropChanceWeapon; }
 	float GetDropChanceHelmet() { return m_DropChanceHelmet; }
 	float GetDropChanceChestplate() { return m_DropChanceChestplate; }
@@ -392,4 +406,8 @@ private:
 	/** Leash calculations inside Tick function */
 	void CalcLeashActions(std::chrono::milliseconds a_Dt);
 
+private:
+	cItem GetStoredEquipment(size_t a_Slot) const { return (m_Equipment == nullptr) ? cItem{} : (*m_Equipment)[a_Slot]; }
+
+	std::unique_ptr<Equipment> m_Equipment;
 } ;  // tolua_export

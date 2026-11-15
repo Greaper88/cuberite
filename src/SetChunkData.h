@@ -27,6 +27,7 @@ struct SetChunkData
 
 	cEntityList Entities;
 	cBlockEntities BlockEntities;
+	std::unique_ptr<cUnloadedEntityRecords> UnloadedEntities;
 
 	bool IsLightValid;
 

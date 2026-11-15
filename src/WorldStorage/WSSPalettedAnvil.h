@@ -2,6 +2,8 @@
 
 #include "WSSAnvil.h"
 
+struct SetChunkData;
+
 
 
 
@@ -16,6 +18,8 @@ public:
 private:
 	bool LoadChunkFromData(const cChunkCoords & a_Chunk, ContiguousByteBufferView a_Data) override;
 	std::optional<Compression::Result> SaveChunkToData(const cChunkCoords & a_Chunk) override;
+
+	void LoadNativeObjects(const cParsedNBT & a_NBT, struct SetChunkData & a_Data);
 
 	const int m_DataVersion;
 };

@@ -219,8 +219,8 @@ cWorld::cWorld(
 	LOGD("cWorld::cWorld(\"%s\")", a_WorldName);
 
 	const auto StorageFormat = SelectWorldStorageFormat(m_DataPath);
-	const bool IsPaletted = StorageFormat.Format == eWorldStorageFormat::PalettedAnvil;
-	m_EngineDataPath = IsPaletted ? m_DataPath + "/cuberite" : m_DataPath;
+	m_UsesPalettedAnvil = StorageFormat.Format == eWorldStorageFormat::PalettedAnvil;
+	m_EngineDataPath = m_UsesPalettedAnvil ? m_DataPath + "/cuberite" : m_DataPath;
 	cFile::CreateFolderRecursive(m_EngineDataPath);
 
 	m_ChunkMap.TrackInDeadlockDetect(a_DeadlockDetect, m_WorldName);
@@ -279,7 +279,7 @@ cWorld::cWorld(
 		m_SpawnZ = IniFile.GetValueI("SpawnPosition", "Z", m_SpawnZ);
 	}
 
-	else if (IsPaletted && (GetDimension() == dimOverworld) && StorageFormat.Spawn.has_value())
+	else if (m_UsesPalettedAnvil && (GetDimension() == dimOverworld) && StorageFormat.Spawn.has_value())
 	{
 		m_IsSpawnExplicitlySet = true;
 		const auto Pos = *StorageFormat.Spawn;
@@ -439,14 +439,14 @@ cWorld::cWorld(
 	m_SimulatorManager->RegisterSimulator(m_SandSimulator.get(), 1);
 	m_SimulatorManager->RegisterSimulator(m_FireSimulator.get(), 1);
 
-	if (IsPaletted && StorageFormat.Seed.has_value() && !IniFile.HasValue("Seed", "Seed"))
+	if (m_UsesPalettedAnvil && StorageFormat.Seed.has_value() && !IniFile.HasValue("Seed", "Seed"))
 	{
 		// The current generator uses a 32-bit seed. Keep the original 64-bit seed in level.dat.
 		const auto Seed = static_cast<UInt32>(*StorageFormat.Seed);
 		IniFile.SetValueI("Seed", "Seed", static_cast<int>(static_cast<Int64>(Seed) - ((Seed > 0x7fffffff) ? (Int64{1} << 32) : 0)));
 	}
-	m_Storage.Initialize(*this, StorageFormat, m_StorageSchema, m_StorageCompressionFactor);
 	m_Generator.Initialize(m_GeneratorCallbacks, m_GeneratorCallbacks, IniFile);
+	m_Storage.Initialize(*this, StorageFormat, m_StorageSchema, m_StorageCompressionFactor);
 
 	m_MapManager.LoadMapData();
 
@@ -1244,10 +1244,19 @@ void cWorld::TickMobs(std::chrono::milliseconds a_Dt)
 			// Tick close mobs
 			if (Monster.GetParentChunk()->HasAnyClients())
 			{
-				Monster.Tick(a_Dt, *(a_Entity.GetParentChunk()));
+				auto & Chunk = *Monster.GetParentChunk();
+				Monster.Tick(a_Dt, Chunk);
+				if (m_UsesPalettedAnvil)
+				{
+					Chunk.MarkDirty();
+				}
 			}
 			// Destroy far hostile mobs except if last target was a player
-			else if ((Monster.GetMobFamily() == cMonster::eFamily::mfHostile) && !Monster.WasLastTargetAPlayer())
+			else if (
+				(Monster.GetMobFamily() == cMonster::eFamily::mfHostile) &&
+				!Monster.WasLastTargetAPlayer() &&
+				((Monster.GetPalettedStorageData() == nullptr) || Monster.GetPalettedStorageData()->Original.empty())
+			)
 			{
 				if (Monster.GetMobType() != eMonsterType::mtWolf)
 				{

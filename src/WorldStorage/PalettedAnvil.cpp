@@ -275,6 +275,31 @@ namespace
 		}
 		a_Writer.EndCompound();
 	}
+
+	void WriteEntityLists(cFastNBTWriter & a_Writer, const cParsedNBT * a_Source)
+	{
+		if ((a_Source != nullptr) && !a_Source->IsValid())
+		{
+			throw std::runtime_error("Invalid NBT for Anvil entity lists");
+		}
+		for (const AString Name : {"Entities", "TileEntities"})
+		{
+			if (a_Source == nullptr)
+			{
+				a_Writer.BeginList(Name, TAG_Compound);
+				a_Writer.EndList();
+				continue;
+			}
+
+			const auto List = RequireTag(*a_Source, a_Source->GetRoot(), Name, TAG_List);
+			const auto Type = a_Source->GetChildrenType(List);
+			if ((Type != TAG_Compound) && (Type != TAG_End))
+			{
+				throw std::runtime_error(fmt::format(FMT_STRING("Invalid entry type for Anvil {}"), Name));
+			}
+			a_Writer.CopyTag(*a_Source, List);
+		}
+	}
 }
 
 
@@ -336,7 +361,8 @@ ContiguousByteBuffer PalettedAnvil::WriteChunk(
 	const std::map<size_t, Section> & a_Sections,
 	const std::vector<Int32> & a_Biomes,
 	Int64 a_LastUpdate,
-	const ChunkLightData * a_LightData
+	const ChunkLightData * a_LightData,
+	const cParsedNBT * a_EntityLists
 )
 {
 	const auto ExpectedBiomes = BiomeCount(a_DataVersion);
@@ -367,10 +393,7 @@ ContiguousByteBuffer PalettedAnvil::WriteChunk(
 	}
 	Writer.EndList();
 
-	Writer.BeginList("Entities", TAG_Compound);
-	Writer.EndList();
-	Writer.BeginList("TileEntities", TAG_Compound);
-	Writer.EndList();
+	WriteEntityLists(Writer, a_EntityLists);
 	Writer.BeginList("TileTicks", TAG_Compound);
 	Writer.EndList();
 	Writer.BeginList("LiquidTicks", TAG_Compound);
@@ -490,14 +513,16 @@ ContiguousByteBuffer PalettedAnvil::Chunk::Encode() const
 
 ContiguousByteBuffer PalettedAnvil::Chunk::Encode(
 	const std::map<size_t, Section> & a_Changes,
-	const ChunkLightData * a_LightData
+	const ChunkLightData * a_LightData,
+	const cParsedNBT * a_EntityLists
 ) const
 {
-	if (a_Changes.empty())
+	const bool TerrainChanged = !a_Changes.empty();
+	if (!TerrainChanged && (a_EntityLists == nullptr))
 	{
 		return m_OriginalNBT;
 	}
-	if (a_Changes.rbegin()->first >= cChunkDef::NumSections)
+	if (TerrainChanged && (a_Changes.rbegin()->first >= cChunkDef::NumSections))
 	{
 		throw std::runtime_error("Anvil terrain section exceeds world height");
 	}
@@ -521,16 +546,20 @@ ContiguousByteBuffer PalettedAnvil::Chunk::Encode(
 		for (int Child = NBT.GetFirstChild(Level); Child >= 0; Child = NBT.GetNextSibling(Child))
 		{
 			const auto Name = NBT.GetName(Child);
-			if ((Name == "isLightOn") && !InlineLighting)
+			if ((a_EntityLists != nullptr) && ((Name == "Entities") || (Name == "TileEntities")))
 			{
 				continue;
 			}
-			if ((Name == "Heightmaps") && (NBT.GetType(Child) == TAG_Compound))
+			if (TerrainChanged && (Name == "isLightOn") && !InlineLighting)
+			{
+				continue;
+			}
+			if (TerrainChanged && (Name == "Heightmaps") && (NBT.GetType(Child) == TAG_Compound))
 			{
 				CopyOtherHeightmaps(Writer, NBT, Child);
 				continue;
 			}
-			if (Child != Sections)
+			if (!TerrainChanged || (Child != Sections))
 			{
 				Writer.CopyTag(NBT, Child);
 				continue;
@@ -583,6 +612,10 @@ ContiguousByteBuffer PalettedAnvil::Chunk::Encode(
 				}
 			}
 			Writer.EndList();
+		}
+		if (a_EntityLists != nullptr)
+		{
+			WriteEntityLists(Writer, a_EntityLists);
 		}
 		Writer.EndCompound();
 	}

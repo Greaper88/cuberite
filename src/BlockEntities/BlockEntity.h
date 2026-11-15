@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "WorldStorage/PalettedEntityData.h"
+
 #include "ChunkDef.h"
 
 
@@ -32,6 +34,9 @@ public:
 	// tolua_end
 
 	virtual ~cBlockEntity() = default;  // force a virtual destructor in all descendants
+
+	const cPalettedEntityData * GetPalettedStorageData() const { return m_PalettedStorageData.get(); }
+	void SetPalettedStorageData(std::unique_ptr<cPalettedEntityData> a_Data) { m_PalettedStorageData = std::move(a_Data); }
 
 	/** Makes an exact copy of this block entity, except for its m_World (set to nullptr), and at a new position.
 	Uses CopyFrom() to copy the properties. */
@@ -124,4 +129,7 @@ protected:
 	NIBBLETYPE m_BlockMeta;
 
 	cWorld * m_World;
+
+private:
+	std::unique_ptr<cPalettedEntityData> m_PalettedStorageData;
 } ;  // tolua_export

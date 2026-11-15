@@ -113,6 +113,9 @@ public:
 	void SetBlock(Vector3i a_Position, BLOCKTYPE a_Block);
 	void SetMeta(Vector3i a_Position, NIBBLETYPE a_Meta);
 
+	/** Changes the runtime approximation while retaining the exact stored name and properties. */
+	void SetNamedProjection(Vector3i a_Position, BLOCKTYPE a_Block, NIBBLETYPE a_Meta);
+
 	void SetAll(const cChunkDef::BlockTypes & a_BlockSource, const cChunkDef::BlockNibbles & a_MetaSource);
 	void SetSection(const SectionType & a_BlockSource, const SectionMetaType & a_MetaSource, size_t a_Y);
 };

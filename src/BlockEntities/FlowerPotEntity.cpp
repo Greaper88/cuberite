@@ -8,6 +8,7 @@
 #include "../Entities/Player.h"
 #include "../ClientHandle.h"
 #include "../Item.h"
+#include "../World.h"
 
 
 
@@ -43,6 +44,19 @@ void cFlowerPotEntity::CopyFrom(const cBlockEntity & a_Src)
 
 
 
+void cFlowerPotEntity::SetItem(const cItem & a_Item)
+{
+	m_Item = a_Item;
+	if (m_World != nullptr)
+	{
+		m_World->MarkChunkDirty(GetChunkX(), GetChunkZ());
+	}
+}
+
+
+
+
+
 bool cFlowerPotEntity::UsedBy(cPlayer * a_Player)
 {
 	if (IsItemInPot())
@@ -55,7 +69,7 @@ bool cFlowerPotEntity::UsedBy(cPlayer * a_Player)
 	cItem SelectedItem = a_Player->GetInventory().GetEquippedItem();
 	if (IsFlower(SelectedItem.m_ItemType, SelectedItem.m_ItemDamage))
 	{
-		m_Item = SelectedItem.CopyOne();
+		SetItem(SelectedItem.CopyOne());
 		if (!a_Player->IsGameModeCreative())
 		{
 			a_Player->GetInventory().RemoveOneEquippedItem();

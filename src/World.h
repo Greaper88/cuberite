@@ -699,6 +699,7 @@ public:
 
 	/** Directory for Cuberite's maps, scoreboard and statistics serializers. */
 	const AString & GetEngineDataPath() const { return m_EngineDataPath; }
+	bool UsesPalettedAnvil() const { return m_UsesPalettedAnvil; }
 
 	// tolua_begin
 
@@ -961,6 +962,7 @@ private:
 
 	AString m_IniFileName;
 	AString m_EngineDataPath;
+	bool m_UsesPalettedAnvil = false;
 
 	/** Name of the storage schema used to load and save chunks */
 	AString m_StorageSchema;

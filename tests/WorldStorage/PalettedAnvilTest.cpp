@@ -262,6 +262,73 @@ namespace
 			}
 		}
 	}
+
+	void CheckEntityLists()
+	{
+		cFastNBTWriter EntitiesWriter;
+		EntitiesWriter.BeginList("Entities", TAG_Compound);
+		EntitiesWriter.BeginCompound("");
+		EntitiesWriter.AddString("id", "minecraft:pig");
+		EntitiesWriter.AddFloat("Health", 9);
+		EntitiesWriter.EndCompound();
+		EntitiesWriter.EndList();
+		EntitiesWriter.BeginList("TileEntities", TAG_Compound);
+		EntitiesWriter.EndList();
+		EntitiesWriter.Finish();
+		const cParsedNBT EntityLists(EntitiesWriter.GetResult());
+
+		for (const auto Version : {1519, 2230})
+		{
+			const auto Count = PalettedAnvil::BiomeCount(Version);
+			const auto Fixture = MakeFixture(Version, Count, std::vector<UInt64>(320));
+			const PalettedAnvil::Chunk Original(Fixture);
+			const cParsedNBT OldNBT(Fixture);
+			const auto OldLevel = OldNBT.FindChildByName(0, "Level");
+
+			ChunkLightData Lighting;
+			const auto Encoded = Original.Encode({}, &Lighting, &EntityLists);
+			const cParsedNBT NBT(Encoded);
+			TEST_TRUE(NBT.IsValid());
+			TEST_EQUAL(NBT.GetInt(NBT.FindChildByName(0, "DataVersion")), Version);
+			const auto Level = NBT.FindChildByName(0, "Level");
+			for (const char * Name : {"Sections", "isLightOn", "Heightmaps", "Biomes", "InhabitedTime"})
+			{
+				TEST_EQUAL(
+					NBT.GetTagPayload(NBT.FindChildByName(Level, Name)),
+					OldNBT.GetTagPayload(OldNBT.FindChildByName(OldLevel, Name))
+				);
+			}
+			for (const char * Name : {"Entities", "TileEntities"})
+			{
+				const auto Tag = NBT.FindChildByName(Level, Name);
+				TEST_NOTEQUAL(Tag, -1);
+				TEST_EQUAL(NBT.GetTagPayload(Tag), EntityLists.GetTagPayload(EntityLists.FindChildByName(0, Name)));
+			}
+
+			const auto Generated = PalettedAnvil::WriteChunk(
+				Version, Original.GetCoords(), {}, std::vector<Int32>(Count, 1), 0, nullptr, &EntityLists
+			);
+			const cParsedNBT GeneratedNBT(Generated);
+			TEST_TRUE(GeneratedNBT.IsValid());
+			const auto GeneratedLevel = GeneratedNBT.FindChildByName(0, "Level");
+			TEST_EQUAL(
+				GeneratedNBT.GetTagPayload(GeneratedNBT.FindChildByName(GeneratedLevel, "Entities")),
+				EntityLists.GetTagPayload(EntityLists.FindChildByName(0, "Entities"))
+			);
+		}
+
+		cFastNBTWriter InvalidWriter;
+		InvalidWriter.BeginList("Entities", TAG_Int);
+		InvalidWriter.AddInt("", 5);
+		InvalidWriter.EndList();
+		InvalidWriter.BeginList("TileEntities", TAG_Compound);
+		InvalidWriter.EndList();
+		InvalidWriter.Finish();
+		const cParsedNBT Invalid(InvalidWriter.GetResult());
+		const auto Fixture = MakeFixture(2230, 1024, std::vector<UInt64>(320));
+		const PalettedAnvil::Chunk Original(Fixture);
+		TEST_THROWS(static_cast<void>(Original.Encode({}, nullptr, &Invalid)), std::runtime_error);
+	}
 }
 
 
@@ -274,4 +341,5 @@ IMPLEMENT_TEST_MAIN("PalettedAnvilTest",
 	CheckInvalidChunkData();
 	CheckEditedChunk();
 	CheckGeneratedChunk();
+	CheckEntityLists();
 )
