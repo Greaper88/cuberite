@@ -1,6 +1,7 @@
 #include "Globals.h"
 #include "WorldFormat.h"
 #include "FastNBT.h"
+#include "PalettedAnvil.h"
 #include "OSSupport/File.h"
 #include "OSSupport/GZipFile.h"
 
@@ -100,6 +101,10 @@ eWorldStorageFormat SelectWorldStorageFormat(const AString & a_WorldPath)
 		RejectFormat(a_WorldPath, fmt::format(FMT_STRING("cannot identify the format in {} ({})"), MetadataPath, Error.what()));
 	}
 
+	if (PalettedAnvil::BiomeCount(DataVersion) != 0)
+	{
+		RejectFormat(a_WorldPath, fmt::format(FMT_STRING("Java DataVersion {} requires paletted block states in the live world engine"), DataVersion));
+	}
 	if (DataVersion > LegacyAnvilMaxDataVersion)
 	{
 		RejectFormat(a_WorldPath, fmt::format(FMT_STRING("Java world DataVersion {} is unsupported"), DataVersion));

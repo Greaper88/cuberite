@@ -7,6 +7,7 @@ target_sources(
 	MapSerializer.cpp
 	NamespaceSerializer.cpp
 	NBTChunkSerializer.cpp
+	PalettedAnvil.cpp
 	SchematicFileSerializer.cpp
 	ScoreboardSerializer.cpp
 	StatisticsSerializer.cpp
@@ -20,6 +21,7 @@ target_sources(
 	MapSerializer.h
 	NamespaceSerializer.h
 	NBTChunkSerializer.h
+	PalettedAnvil.h
 	SchematicFileSerializer.h
 	ScoreboardSerializer.h
 	StatisticsSerializer.h

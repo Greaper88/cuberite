@@ -196,6 +196,9 @@ public:
 		return m_Data.data() + m_Tags[static_cast<size_t>(a_Tag)].m_DataStart;
 	}
 
+	/** Returns a tag's encoded payload, including any length prefixes and nested tags. */
+	ContiguousByteBufferView GetTagPayload(int a_Tag) const;
+
 	/** Returns the direct child tag of the specified name, or -1 if no such tag. */
 	int FindChildByName(int a_Tag, const AString & a_Name) const
 	{
@@ -346,6 +349,9 @@ public:
 	{
 		AddByteArray(a_Name, a_Value.data(), a_Value.size());
 	}
+
+	/** Copies a parsed tag and its descendants without interpreting their values. */
+	void CopyTag(const cParsedNBT & a_Source, int a_Tag);
 
 	ContiguousByteBufferView GetResult(void) const { return m_Result; }
 

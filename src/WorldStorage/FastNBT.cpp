@@ -178,7 +178,11 @@ eNBTParseError cParsedNBT::Parse(void)
 	m_Pos = 1;
 
 	PROPAGATE_ERROR(ReadString(m_Tags.back().m_NameStart, m_Tags.back().m_NameLength));
-	return ReadCompound();
+	const auto Start = m_Pos;
+	PROPAGATE_ERROR(ReadCompound());
+	m_Tags.front().m_DataStart = Start;
+	m_Tags.front().m_DataLength = m_Pos - Start;
+	return eNBTParseError::npSuccess;
 }
 
 
@@ -326,17 +330,27 @@ eNBTParseError cParsedNBT::ReadTag(void)
 		}
 
 		case TAG_List:
-		{
-			NEEDBYTES(1, eNBTParseError::npListMissingType);
-			eTagType ItemType = static_cast<eTagType>(m_Data[m_Pos]);
-			m_Pos++;
-			PROPAGATE_ERROR(ReadList(ItemType));
-			return eNBTParseError::npSuccess;
-		}
-
 		case TAG_Compound:
 		{
-			PROPAGATE_ERROR(ReadCompound());
+			// Parsing children can reallocate m_Tags.
+			const auto Index = m_Tags.size() - 1;
+			const auto Start = m_Pos;
+			if (Tag.m_Type == TAG_List)
+			{
+				NEEDBYTES(1, eNBTParseError::npListMissingType);
+				const auto ItemType = m_Data[m_Pos++];
+				if (ItemType > std::byte(TAG_Max))
+				{
+					return eNBTParseError::npUnknownTag;
+				}
+				PROPAGATE_ERROR(ReadList(static_cast<eTagType>(ItemType)));
+			}
+			else
+			{
+				PROPAGATE_ERROR(ReadCompound());
+			}
+			m_Tags[Index].m_DataStart = Start;
+			m_Tags[Index].m_DataLength = m_Pos - Start;
 			return eNBTParseError::npSuccess;
 		}
 
@@ -366,6 +380,19 @@ eNBTParseError cParsedNBT::ReadTag(void)
 }
 
 #undef CASE_SIMPLE_TAG
+
+
+
+
+
+ContiguousByteBufferView cParsedNBT::GetTagPayload(int a_Tag) const
+{
+	const auto & Tag = m_Tags[static_cast<size_t>(a_Tag)];
+	const auto PrefixLength =
+		(Tag.m_Type == TAG_String) ? 2u :
+		((Tag.m_Type == TAG_ByteArray) || (Tag.m_Type == TAG_IntArray) || (Tag.m_Type == TAG_LongArray)) ? 4u : 0u;
+	return m_Data.substr(Tag.m_DataStart - PrefixLength, Tag.m_DataLength + PrefixLength);
+}
 
 
 
@@ -682,6 +709,16 @@ void cFastNBTWriter::AddLongArray(const AString & a_Name, const UInt64 * a_Value
 		const auto Element = HostToNetwork(a_Value[Index]);
 		m_Result.append(Element.begin(), Element.end());
 	}
+}
+
+
+
+
+
+void cFastNBTWriter::CopyTag(const cParsedNBT & a_Source, int a_Tag)
+{
+	TagCommon(a_Source.GetName(a_Tag), a_Source.GetType(a_Tag));
+	m_Result.append(a_Source.GetTagPayload(a_Tag));
 }
 
 
